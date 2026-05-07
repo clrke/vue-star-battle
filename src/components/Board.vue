@@ -6,14 +6,14 @@ import Cell from './Cell.vue'
 import type { BorderEdges } from '../types/puzzle'
 
 const game = useGameStore()
-const { currentPuzzle, cellStates, violations, isSolved, hintCell } = storeToRefs(game)
+const { currentPuzzle, cellStates, violations, isSolved, hintCell, starCount } = storeToRefs(game)
 
 const n = computed(() => currentPuzzle.value.n)
 
 function getBorders(row: number, col: number): BorderEdges {
   const grid = currentPuzzle.value.grid
   const size = n.value
-  const rid = grid[row][col]
+  const rid  = grid[row][col]
   return {
     top:    row === 0        || grid[row - 1][col] !== rid,
     right:  col === size - 1 || grid[row][col + 1] !== rid,
@@ -22,11 +22,8 @@ function getBorders(row: number, col: number): BorderEdges {
   }
 }
 
-function isViolated(row: number, col: number): boolean {
-  return violations.value.has(`${row},${col}`)
-}
-
-function isHint(row: number, col: number): boolean {
+const isViolated = (row: number, col: number) => violations.value.has(`${row},${col}`)
+const isHint     = (row: number, col: number) => {
   const h = hintCell.value
   return h !== null && h[0] === row && h[1] === col
 }
@@ -34,6 +31,18 @@ function isHint(row: number, col: number): boolean {
 
 <template>
   <div class="board-wrap">
+    <!-- Progress bar -->
+    <div class="progress" :class="{ 'progress--done': isSolved }">
+      <div class="progress-track">
+        <div
+          class="progress-fill"
+          :style="{ width: `${Math.min(starCount / n, 1) * 100}%` }"
+        />
+      </div>
+      <span class="progress-label">{{ starCount }} / {{ n }} ★</span>
+    </div>
+
+    <!-- Grid -->
     <div
       class="board"
       :style="{
@@ -51,8 +60,8 @@ function isHint(row: number, col: number): boolean {
           :borders="getBorders(r - 1, c - 1)"
           :is-violated="isViolated(r - 1, c - 1)"
           :is-hint="isHint(r - 1, c - 1)"
-          @click="game.cycleCell(r - 1, c - 1)"
-          @contextmenu="game.cycleCell(r - 1, c - 1)"
+          @click="game.toggleStar(r - 1, c - 1)"
+          @contextmenu="game.toggleMark(r - 1, c - 1)"
         />
       </template>
     </div>
@@ -68,10 +77,51 @@ function isHint(row: number, col: number): boolean {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   container-type: inline-size;
 }
 
+/* Progress bar */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(90vw, 90vh, 560px);
+}
+
+.progress-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #e0e0e0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #1a1a2e;
+  transition: width 200ms ease, background 400ms ease;
+}
+
+.progress--done .progress-fill {
+  background: #27ae60;
+}
+
+.progress-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #666;
+  min-width: 4ch;
+  text-align: right;
+  transition: color 400ms ease;
+}
+
+.progress--done .progress-label {
+  color: #27ae60;
+}
+
+/* Board */
 .board {
   display: grid;
   width: min(90vw, 90vh, 560px);

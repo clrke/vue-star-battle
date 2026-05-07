@@ -1,18 +1,40 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
 import Board from './components/Board.vue'
 import { puzzles } from './data/puzzles'
-import { storeToRefs } from 'pinia'
 
 const game = useGameStore()
-const { currentPuzzle, isSolved } = storeToRefs(game)
+const { currentPuzzle, isSolved, canUndo, canRedo } = storeToRefs(game)
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+function onKeydown(e: KeyboardEvent) {
+  const mod = e.ctrlKey || e.metaKey
+  if (!mod) return
+  if (e.key === 'z') {
+    e.preventDefault()
+    if (e.shiftKey) game.redo()
+    else            game.undo()
+  }
+  if (e.key === 'y') {
+    e.preventDefault()
+    game.redo()
+  }
+}
+
+onMounted(()  => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
   <div class="app">
     <header class="app-header">
       <h1 class="app-title">★ Star Battle</h1>
-      <p class="app-subtitle">Place one star in every row, column, and region — no two stars may touch.</p>
+      <p class="app-subtitle">
+        Place one star in every row, column &amp; region — no two stars may touch.<br>
+        <small>Left-click = ★ &nbsp;·&nbsp; Right-click = mark dot &nbsp;·&nbsp; Ctrl+Z = undo</small>
+      </p>
     </header>
 
     <nav class="puzzle-nav">
@@ -32,8 +54,10 @@ const { currentPuzzle, isSolved } = storeToRefs(game)
     </main>
 
     <footer class="app-footer">
-      <button class="reset-btn" @click="game.reset">Reset</button>
-      <button class="hint-btn" :disabled="isSolved" @click="game.showHint()">Hint</button>
+      <button class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
+      <button class="footer-btn" title="Redo (Ctrl+Shift+Z)" :disabled="!canRedo" @click="game.redo()">↪ Redo</button>
+      <button class="footer-btn footer-btn--reset" title="Reset puzzle" @click="game.reset">Reset</button>
+      <button class="footer-btn footer-btn--hint" :disabled="isSolved" @click="game.showHint()">Hint</button>
     </footer>
   </div>
 </template>
@@ -44,8 +68,8 @@ const { currentPuzzle, isSolved } = storeToRefs(game)
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  padding: 24px 16px 32px;
+  gap: 18px;
+  padding: 20px 16px 28px;
 }
 
 .app-header {
@@ -64,7 +88,12 @@ const { currentPuzzle, isSolved } = storeToRefs(game)
   margin: 0;
   font-size: 0.875rem;
   color: #555;
-  max-width: 36ch;
+  line-height: 1.6;
+}
+
+.app-subtitle small {
+  font-size: 0.78rem;
+  color: #888;
 }
 
 .puzzle-nav {
@@ -86,10 +115,7 @@ const { currentPuzzle, isSolved } = storeToRefs(game)
   transition: all 120ms ease;
 }
 
-.puzzle-btn:hover {
-  border-color: #aaa;
-  background: #f5f5f5;
-}
+.puzzle-btn:hover { border-color: #aaa; background: #f5f5f5; }
 
 .puzzle-btn--active {
   border-color: #1a1a2e;
@@ -107,46 +133,45 @@ const { currentPuzzle, isSolved } = storeToRefs(game)
 
 .app-footer {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.reset-btn {
-  padding: 8px 24px;
+/* Shared button base */
+.footer-btn {
+  padding: 8px 20px;
   border-radius: 8px;
-  border: 2px solid #ccc;
+  border: 2px solid #ddd;
   background: #fff;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #555;
   transition: all 120ms ease;
 }
 
-.reset-btn:hover {
-  border-color: #999;
-  color: #222;
+.footer-btn:hover:not(:disabled) { border-color: #aaa; color: #222; }
+
+.footer-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
-.hint-btn {
-  padding: 8px 24px;
-  border-radius: 8px;
-  border: 2px solid #f39c12;
-  background: #fff;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 600;
+/* Variants */
+.footer-btn--reset {
+  border-color: #ccc;
+  color: #555;
+}
+
+.footer-btn--hint {
+  border-color: #f39c12;
   color: #f39c12;
-  transition: all 120ms ease;
 }
 
-.hint-btn:hover:not(:disabled) {
+.footer-btn--hint:hover:not(:disabled) {
   background: #fef9f0;
   border-color: #e67e22;
   color: #e67e22;
-}
-
-.hint-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 </style>
