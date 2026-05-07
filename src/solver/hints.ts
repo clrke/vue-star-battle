@@ -30,7 +30,11 @@ import { getSolution } from './solver'
      13. TRIPLE-CONFINEMENT    — Hall-style N=3 extension of the pair rule:
                                  three regions whose candidate row/col union
                                  is exactly 3 (and mirror) → eliminate elsewhere
-     14. FALLBACK              — reveal a cell from the unique solution
+     14. LOOKAHEAD-MARK        — hypothetical star at C zeroes out another
+                                 unplaced region/row/col → mark C
+     15. LOOKAHEAD-DOUBLE      — hypothetical star at C forces two unplaced
+                                 regions to share a single row/col → mark C
+     16. FALLBACK              — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
@@ -1536,6 +1540,142 @@ function findLookaheadMarkHint(
   return null
 }
 
+// ── Lookahead double-confinement (regions colliding on a row/col) ─────────
+
+/**
+ * For each candidate cell C, hypothetically place a star at C and check
+ * whether the resulting state would leave **two distinct unplaced regions**
+ * both with their remaining candidates confined to the same single row
+ * — or the same single column.
+ *
+ * If yes, both regions would need their star in that one row (or column),
+ * but only one star fits per row / per column. Contradiction → C can't be
+ * a star, mark it.
+ *
+ * Strictly stronger than findLookaheadMarkHint (which only fires when ONE
+ * entity is left with zero candidates); this catches the case where each
+ * region still has candidates but two of them are forced into the same
+ * single line.
+ */
+function findLookaheadDoubleConfinementHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n, grid } = puzzle
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!mask[r][c]) continue
+      if (state[r][c] !== 'empty') continue
+      const rid = grid[r][c]
+
+      // Cells the hypothetical star at (r,c) would rule out (row, col,
+      // region, 8-adjacency).
+      const blocked = new Set<string>()
+      for (let i = 0; i < n; i++) {
+        blocked.add(`${r},${i}`)
+        blocked.add(`${i},${c}`)
+      }
+      for (let rr = 0; rr < n; rr++)
+        for (let cc = 0; cc < n; cc++)
+          if (grid[rr][cc] === rid) blocked.add(`${rr},${cc}`)
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc
+          if (nr >= 0 && nr < n && nc >= 0 && nc < n) blocked.add(`${nr},${nc}`)
+        }
+
+      // Snapshot remaining candidates per unplaced region (after the
+      // hypothetical block-out). Skip C's own region and any region that
+      // would have zero candidates — that case is handled by the simpler
+      // findLookaheadMarkHint earlier in the search order.
+      type Snap = { rid: number; cands: [number, number][]; rows: Set<number>; cols: Set<number> }
+      const snaps: Snap[] = []
+      for (let xrid = 0; xrid < n; xrid++) {
+        if (xrid === rid) continue
+        if (placed.regions.has(xrid)) continue
+        const cands = eligibleInRegion(puzzle, mask, xrid)
+          .filter(([cr, cc]) => !blocked.has(`${cr},${cc}`))
+        if (cands.length === 0) continue
+        const rows = new Set(cands.map(([cr]) => cr))
+        const cols = new Set(cands.map(([, cc]) => cc))
+        snaps.push({ rid: xrid, cands, rows, cols })
+      }
+
+      // Look for two regions both confined to the same single row or
+      // the same single column.
+      for (let i = 0; i < snaps.length; i++) {
+        for (let j = i + 1; j < snaps.length; j++) {
+          const A = snaps[i], B = snaps[j]
+
+          // Same single row?
+          if (A.rows.size === 1 && B.rows.size === 1) {
+            const rA = [...A.rows][0]
+            const rB = [...B.rows][0]
+            if (rA === rB) {
+              return {
+                category: 'lookahead-mark',
+                cell: [r, c], action: 'place-mark',
+                label: 'Lookahead',
+                reason:
+                  `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
+                  `the candidates of two highlighted regions would all fall in the same row — but only one star fits per row. Mark this cell.`,
+                steps: [
+                  step(
+                    `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
+                    { primaryCell: [r, c] },
+                  ),
+                  step(
+                    `The two highlighted regions would be left with all their remaining candidates inside the highlighted row.`,
+                    { primaryCell: [r, c], regions: [A.rid, B.rid], rows: [rA], cells: [...A.cands, ...B.cands] },
+                  ),
+                  step(
+                    `Each region needs its own star, but a single row can only hold one — a contradiction. So this cell can't be a star. Mark it.`,
+                    { primaryCell: [r, c], regions: [A.rid, B.rid], rows: [rA] },
+                  ),
+                ],
+              }
+            }
+          }
+
+          // Same single column?
+          if (A.cols.size === 1 && B.cols.size === 1) {
+            const cA = [...A.cols][0]
+            const cB = [...B.cols][0]
+            if (cA === cB) {
+              return {
+                category: 'lookahead-mark',
+                cell: [r, c], action: 'place-mark',
+                label: 'Lookahead',
+                reason:
+                  `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
+                  `the candidates of two highlighted regions would all fall in the same column — but only one star fits per column. Mark this cell.`,
+                steps: [
+                  step(
+                    `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
+                    { primaryCell: [r, c] },
+                  ),
+                  step(
+                    `The two highlighted regions would be left with all their remaining candidates inside the highlighted column.`,
+                    { primaryCell: [r, c], regions: [A.rid, B.rid], cols: [cA], cells: [...A.cands, ...B.cands] },
+                  ),
+                  step(
+                    `Each region needs its own star, but a single column can only hold one — a contradiction. So this cell can't be a star. Mark it.`,
+                    { primaryCell: [r, c], regions: [A.rid, B.rid], cols: [cA] },
+                  ),
+                ],
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return null
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
@@ -1840,6 +1980,13 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   // ── 10.5 Lookahead mark (1-step hypothetical) ─────────────────────────────
   const lookahead = findLookaheadMarkHint(puzzle, state, mask, placed)
   if (lookahead) return lookahead
+
+  // ── 10.6 Lookahead double-confinement (two regions colliding on a line) ──
+  // Catches cases where a hypothetical star wouldn't zero out any single
+  // region, but would force two regions to compete for the same single
+  // row or column.
+  const doubleConfine = findLookaheadDoubleConfinementHint(puzzle, state, mask, placed)
+  if (doubleConfine) return doubleConfine
 
   // ── 11. Fallback: no single-step logical rule fires ──────────────────────
   // Instead of a generic message, find the most-constrained unplaced
