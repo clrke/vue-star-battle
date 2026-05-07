@@ -4,27 +4,30 @@ import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
 import { useProgressionStore } from './stores/progression'
 import Board from './components/Board.vue'
-import GeneratePanel from './components/GeneratePanel.vue'
 import LevelHud from './components/LevelHud.vue'
 import HintBox from './components/HintBox.vue'
 import StatsModal from './components/StatsModal.vue'
 import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
-import { preGenerate } from './composables/useGenerator'
+import { preGenerate, useGenerator } from './composables/useGenerator'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
-const { currentPuzzle, isSolved, canUndo, canRedo } = storeToRefs(game)
-const { currentSize } = storeToRefs(progression)
+const { isSolved, canUndo, canRedo } = storeToRefs(game)
 
-// Only show static puzzles matching the player's current level — they don't
-// get to pick smaller / larger boards.
-const availablePuzzles = computed(() =>
-  puzzles.filter(p => p.n === currentSize.value),
-)
+const { status: genStatus, generate } = useGenerator()
+const isGenerating = computed(() => genStatus.value === 'generating')
 
 const { darkMode, toggleDark } = useDarkMode()
 const showStats = ref(false)
+
+async function onNext() {
+  if (isGenerating.value) return
+  try {
+    const puzzle = await generate(progression.currentSize)
+    game.initBoard(puzzle)
+  } catch { /* failure surfaces via genStatus; user can re-click */ }
+}
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
@@ -47,6 +50,14 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibility)
   // Warm up the generator for the player's current level/size
   preGenerate(progression.currentSize)
+  // The store boots with puzzles[0] (a 4×4). If the player has levelled past
+  // that, swap in a size-appropriate puzzle so they aren't stuck on the wrong
+  // grid — bundled match preferred, generated fallback otherwise.
+  if (game.currentPuzzle.n !== progression.currentSize) {
+    const bundled = puzzles.find(p => p.n === progression.currentSize)
+    if (bundled) game.initBoard(bundled)
+    else void onNext()
+  }
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -74,24 +85,6 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div class="puzzle-controls">
-      <nav v-if="availablePuzzles.length" class="puzzle-nav">
-        <button
-          v-for="p in availablePuzzles"
-          :key="p.id"
-          class="puzzle-btn"
-          :class="{ 'puzzle-btn--active': currentPuzzle.id === p.id }"
-          @click="game.initBoard(p)"
-        >
-          {{ p.title }}
-        </button>
-      </nav>
-
-      <div v-if="availablePuzzles.length" class="controls-divider"><span>or generate</span></div>
-
-      <GeneratePanel />
-    </div>
-
     <main class="app-main">
       <Board />
     </main>
@@ -104,7 +97,23 @@ onUnmounted(() => {
       <button class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
       <button class="footer-btn" title="Redo (Ctrl+Shift+Z)" :disabled="!canRedo" @click="game.redo()">↪ Redo</button>
       <button class="footer-btn footer-btn--reset" title="Reset puzzle" @click="game.reset">Reset</button>
-      <button class="footer-btn footer-btn--hint" :disabled="isSolved" @click="game.showHint()">Hint</button>
+      <button
+        v-if="isSolved"
+        class="footer-btn footer-btn--next"
+        :disabled="isGenerating"
+        @click="onNext"
+      >
+        <span v-if="isGenerating" class="footer-btn__inner">
+          <span class="footer-spinner" />
+          Generating…
+        </span>
+        <span v-else>Next ➜</span>
+      </button>
+      <button
+        v-else
+        class="footer-btn footer-btn--hint"
+        @click="game.showHint()"
+      >Hint</button>
     </footer>
   </div>
 </template>
@@ -152,56 +161,6 @@ onUnmounted(() => {
   .hint-touch   { display: inline-block; }
 }
 
-.puzzle-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.puzzle-nav {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.puzzle-btn {
-  padding: 5px 14px;
-  border-radius: 999px;
-  border: 2px solid var(--border);
-  background: var(--bg-card);
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text);
-  transition: all 120ms ease;
-}
-.puzzle-btn:hover { border-color: var(--border-strong); background: var(--bg-subtle); }
-.puzzle-btn--active {
-  border-color: var(--text); background: var(--text); color: var(--bg);
-}
-
-.controls-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: min(360px, 90vw);
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.controls-divider::before,
-.controls-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
 .app-main {
   flex: 1;
   display: flex;
@@ -236,6 +195,41 @@ onUnmounted(() => {
 .footer-btn--hint { border-color: var(--amber); color: var(--amber); }
 .footer-btn--hint:hover:not(:disabled) {
   background: var(--bg-subtle); border-color: var(--amber); color: var(--amber);
+}
+
+/* Solved-state CTA: replaces Hint with a prominent green Next button. */
+.footer-btn--next {
+  border-color: #27ae60;
+  background: #27ae60;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(39, 174, 96, 0.35);
+  animation: next-pulse 1.6s ease-in-out infinite;
+}
+.footer-btn--next:hover:not(:disabled) {
+  background: #229954;
+  border-color: #229954;
+}
+.footer-btn--next:disabled {
+  animation: none;
+  box-shadow: none;
+}
+.footer-btn__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.footer-spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes next-pulse {
+  0%, 100% { box-shadow: 0 2px 10px rgba(39, 174, 96, 0.35); }
+  50%      { box-shadow: 0 2px 18px rgba(39, 174, 96, 0.65); }
 }
 
 .hud-actions {
