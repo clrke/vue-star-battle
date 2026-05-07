@@ -93,6 +93,17 @@ const hintAction = computed(() =>
     ? lastHint.value.action
     : null,
 )
+
+// ── Hover crosshair (mouse only) ──────────────────────────────────────────
+// Track which cell the mouse is currently over so we can tint the rest of
+// its row and column. Cleared on pointerleave from the board. Cells filter
+// to pointerType === 'mouse', and the visual is also gated behind
+// `(hover: hover) and (pointer: fine)` in CSS, so touch never shows it.
+const hoverCell = ref<{ r: number; c: number } | null>(null)
+const inHoverRow = (r: number) => hoverCell.value?.r === r
+const inHoverCol = (c: number) => hoverCell.value?.c === c
+function onCellHover(r: number, c: number) { hoverCell.value = { r, c } }
+function onBoardLeave() { hoverCell.value = null }
 </script>
 
 <template>
@@ -117,6 +128,7 @@ const hintAction = computed(() =>
         gridTemplateRows:    `repeat(${n}, 1fr)`,
       }"
       :class="{ 'board--solved': isSolved }"
+      @pointerleave="onBoardLeave"
     >
       <template v-for="r in n" :key="r">
         <Cell
@@ -132,6 +144,9 @@ const hintAction = computed(() =>
           :in-hint-col="inHintCol(c - 1)"
           :in-hint-region="inHintRegion(r - 1, c - 1)"
           :is-hint-extra="isHintExtra(r - 1, c - 1)"
+          :in-hover-row="inHoverRow(r - 1)"
+          :in-hover-col="inHoverCol(c - 1)"
+          @hover="onCellHover(r - 1, c - 1)"
           @toggle-star="game.toggleStar(r - 1, c - 1)"
           @toggle-mark="game.toggleMark(r - 1, c - 1)"
         />

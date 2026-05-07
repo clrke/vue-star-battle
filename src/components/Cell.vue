@@ -29,12 +29,23 @@ const props = defineProps<{
   inHintCol?: boolean
   inHintRegion?: boolean
   isHintExtra?: boolean
+  /** Pointer-hover crosshair flags — drawn only on hover-capable devices. */
+  inHoverRow?: boolean
+  inHoverCol?: boolean
 }>()
 
 const emit = defineEmits<{
   toggleStar: []
   toggleMark: []
+  hover: []
 }>()
+
+/** Mouse-only hover signal; touch synthesizes mouseenter on tap, which
+ *  would leave a sticky crosshair after the user lifts their finger. */
+function handlePointerEnter(e: PointerEvent) {
+  if (e.pointerType !== 'mouse') return
+  emit('hover')
+}
 
 /* ------------------------------------------------------------------------- *
  * Touch gesture detection
@@ -190,6 +201,7 @@ onUnmounted(() => {
     :style="{ backgroundColor: REGION_COLORS[regionId % REGION_COLORS.length] }"
     @click="handleClick"
     @contextmenu="handleContextMenu"
+    @pointerenter="handlePointerEnter"
     @touchstart.passive="handleTouchStart"
     @touchmove.passive="handleTouchMove"
     @touchend="handleTouchEnd"
@@ -208,6 +220,14 @@ onUnmounted(() => {
       v-if="inHintRow || inHintCol"
       class="cell__hl-line"
       :style="{ '--hl-line-strength': lineHighlightStrength } as any"
+      aria-hidden="true"
+    />
+
+    <!-- Hover crosshair: subtle neutral tint along the hovered row + column.
+         Mouse-only; CSS gates the visual to (hover: hover) and (pointer: fine). -->
+    <div
+      v-if="inHoverRow || inHoverCol"
+      class="cell__hl-hover"
       aria-hidden="true"
     />
 
@@ -348,6 +368,21 @@ onUnmounted(() => {
   z-index: 1;
   background: rgba(41, 128, 185, calc(0.12 + 0.12 * var(--hl-line-strength)));
   transition: background 200ms ease;
+}
+
+/* Hover crosshair — subtle neutral darkening so it composes over the
+ * pastel region colors in both light and dark modes. Only painted on
+ * devices that actually have hover (skips touch / stylus). */
+.cell__hl-hover {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(0, 0, 0, 0.07);
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cell__hl-hover { display: block; }
 }
 
 .cell__hl-extra {
