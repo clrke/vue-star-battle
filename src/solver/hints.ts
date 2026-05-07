@@ -209,11 +209,11 @@ function findMarkHint(
             `row ${ord(sr)}, column ${ord(sc)}. Each region holds exactly one star.`,
           steps: [
             step(
-              `Region ${rid + 1} already has its star at row ${ord(sr)}, column ${ord(sc)}.`,
+              `The highlighted region already has its star at row ${ord(sr)}, column ${ord(sc)}.`,
               { regions: [rid], cells: [[sr, sc]] },
             ),
             step(
-              `Each region holds exactly one star, so every other cell in Region ${rid + 1} can be ruled out.`,
+              `Each region holds exactly one star, so every other cell in the highlighted region can be ruled out.`,
               { regions: [rid] },
             ),
             step(
@@ -334,10 +334,10 @@ function findConfinementHint(
           cell: [row, c], action: 'place-mark',
           label: 'Region locks row',
           reason:
-            `Every cell where Region ${rid + 1}'s star could still go is on row ${ord(row)}.`,
+            `Every cell where the highlighted region's star could still go is on row ${ord(row)}.`,
           steps: [
             step(
-              `Look at Region ${rid + 1}.`,
+              `Look at the highlighted region.`,
               { regions: [rid] },
             ),
             step(
@@ -345,7 +345,7 @@ function findConfinementHint(
               { regions: [rid], rows: [row] },
             ),
             step(
-              `So row ${ord(row)}'s one star MUST come from Region ${rid + 1}. No other region may use row ${ord(row)}.`,
+              `So row ${ord(row)}'s one star MUST come from the highlighted region. No other region may use row ${ord(row)}.`,
               { regions: [rid], rows: [row] },
             ),
             step(
@@ -368,10 +368,10 @@ function findConfinementHint(
           cell: [r, col], action: 'place-mark',
           label: 'Region locks column',
           reason:
-            `Every cell where Region ${rid + 1}'s star could still go is in column ${ord(col)}.`,
+            `Every cell where the highlighted region's star could still go is in column ${ord(col)}.`,
           steps: [
             step(
-              `Look at Region ${rid + 1}.`,
+              `Look at the highlighted region.`,
               { regions: [rid] },
             ),
             step(
@@ -379,7 +379,7 @@ function findConfinementHint(
               { regions: [rid], cols: [col] },
             ),
             step(
-              `So column ${ord(col)}'s one star MUST come from Region ${rid + 1}.`,
+              `So column ${ord(col)}'s one star MUST come from the highlighted region.`,
               { regions: [rid], cols: [col] },
             ),
             step(
@@ -414,22 +414,22 @@ function findConfinementHint(
           cell: [rr, c], action: 'place-mark',
           label: 'Row claims region',
           reason:
-            `Every column where row ${ord(r)}'s star could still go is inside Region ${rid + 1}.`,
+            `Every column where row ${ord(r)}'s star could still go is inside the highlighted region.`,
           steps: [
             step(
               `Look at Row ${ord(r)}.`,
               { rows: [r] },
             ),
             step(
-              `Every column where its star could still go is inside Region ${rid + 1}.`,
+              `Every column where its star could still go is inside the highlighted region.`,
               { rows: [r], regions: [rid] },
             ),
             step(
-              `So Region ${rid + 1}'s star MUST come from row ${ord(r)}. Cells in this region on other rows are out.`,
+              `So the highlighted region's star MUST come from row ${ord(r)}. Cells in this region on other rows are out.`,
               { regions: [rid], rows: [r] },
             ),
             step(
-              `Cell (row ${ord(rr)}, column ${ord(c)}) is in Region ${rid + 1} but on a different row. Mark it.`,
+              `Cell (row ${ord(rr)}, column ${ord(c)}) is in the highlighted region but on a different row. Mark it.`,
               { regions: [rid], rows: [r], primaryCell: [rr, c] },
             ),
           ],
@@ -459,22 +459,22 @@ function findConfinementHint(
           cell: [r, cc], action: 'place-mark',
           label: 'Column claims region',
           reason:
-            `Every row where column ${ord(c)}'s star could still go is inside Region ${rid + 1}.`,
+            `Every row where column ${ord(c)}'s star could still go is inside the highlighted region.`,
           steps: [
             step(
               `Look at Column ${ord(c)}.`,
               { cols: [c] },
             ),
             step(
-              `Every row where its star could still go is inside Region ${rid + 1}.`,
+              `Every row where its star could still go is inside the highlighted region.`,
               { cols: [c], regions: [rid] },
             ),
             step(
-              `So Region ${rid + 1}'s star MUST come from column ${ord(c)}. Cells in this region in other columns are out.`,
+              `So the highlighted region's star MUST come from column ${ord(c)}. Cells in this region in other columns are out.`,
               { regions: [rid], cols: [c] },
             ),
             step(
-              `Cell (row ${ord(r)}, column ${ord(cc)}) is in Region ${rid + 1} but on a different column. Mark it.`,
+              `Cell (row ${ord(r)}, column ${ord(cc)}) is in the highlighted region but on a different column. Mark it.`,
               { regions: [rid], cols: [c], primaryCell: [r, cc] },
             ),
           ],
@@ -544,10 +544,10 @@ function findPairConfinementHint(
             cell: [row, c], action: 'place-mark',
             label: 'Region pair locks rows',
             reason:
-              `Regions ${a + 1} and ${b + 1} can both only place stars on rows ${ord(r1)} or ${ord(r2)}.`,
+              `The two highlighted regions can both only place stars on rows ${ord(r1)} or ${ord(r2)}.`,
             steps: [
               step(
-                `Look at Regions ${a + 1} and ${b + 1}.`,
+                `Look at the two highlighted regions.`,
                 { regions: [a, b] },
               ),
               step(
@@ -559,7 +559,7 @@ function findPairConfinementHint(
                 { rows: [r1, r2], regions: [a, b] },
               ),
               step(
-                `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in Region ${rid + 1}. Mark it.`,
+                `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in a different region. Mark it.`,
                 { rows: [r1, r2], regions: [a, b], primaryCell: [row, c] },
               ),
             ],
@@ -587,10 +587,10 @@ function findPairConfinementHint(
             cell: [r, col], action: 'place-mark',
             label: 'Region pair locks columns',
             reason:
-              `Regions ${a + 1} and ${b + 1} can both only place stars in columns ${ord(c1)} or ${ord(c2)}.`,
+              `The two highlighted regions can both only place stars in columns ${ord(c1)} or ${ord(c2)}.`,
             steps: [
               step(
-                `Look at Regions ${a + 1} and ${b + 1}.`,
+                `Look at the two highlighted regions.`,
                 { regions: [a, b] },
               ),
               step(
@@ -602,7 +602,7 @@ function findPairConfinementHint(
                 { cols: [c1, c2], regions: [a, b] },
               ),
               step(
-                `Cell (row ${ord(r)}, column ${ord(col)}) is in Region ${rid + 1} on column ${ord(col)}. Mark it.`,
+                `Cell (row ${ord(r)}, column ${ord(col)}) is in a different region on column ${ord(col)}. Mark it.`,
                 { cols: [c1, c2], regions: [a, b], primaryCell: [r, col] },
               ),
             ],
@@ -649,14 +649,14 @@ function findPairConfinementHint(
               cell: [r, c], action: 'place-mark',
               label: 'Row pair locks regions',
               reason:
-                `Rows ${ord(a)} and ${ord(b)} can both only place stars in regions ${g1 + 1} or ${g2 + 1}.`,
+                `Rows ${ord(a)} and ${ord(b)} can both only place stars in the two highlighted regions.`,
               steps: [
                 step(
                   `Look at Rows ${ord(a)} and ${ord(b)}.`,
                   { rows: [a, b] },
                 ),
                 step(
-                  `Both can ONLY place their stars in regions ${g1 + 1} or ${g2 + 1}.`,
+                  `Both can ONLY place their stars in the two highlighted regions.`,
                   { rows: [a, b], regions: [g1, g2] },
                 ),
                 step(
@@ -664,7 +664,7 @@ function findPairConfinementHint(
                   { regions: [g1, g2], rows: [a, b] },
                 ),
                 step(
-                  `Cell (row ${ord(r)}, column ${ord(c)}) is in Region ${rid + 1} but on a different row. Mark it.`,
+                  `Cell (row ${ord(r)}, column ${ord(c)}) is in one of those regions but on a different row. Mark it.`,
                   { regions: [g1, g2], rows: [a, b], primaryCell: [r, c] },
                 ),
               ],
@@ -694,14 +694,14 @@ function findPairConfinementHint(
               cell: [r, c], action: 'place-mark',
               label: 'Column pair locks regions',
               reason:
-                `Columns ${ord(a)} and ${ord(b)} can both only place stars in regions ${g1 + 1} or ${g2 + 1}.`,
+                `Columns ${ord(a)} and ${ord(b)} can both only place stars in the two highlighted regions.`,
               steps: [
                 step(
                   `Look at Columns ${ord(a)} and ${ord(b)}.`,
                   { cols: [a, b] },
                 ),
                 step(
-                  `Both can ONLY place their stars in regions ${g1 + 1} or ${g2 + 1}.`,
+                  `Both can ONLY place their stars in the two highlighted regions.`,
                   { cols: [a, b], regions: [g1, g2] },
                 ),
                 step(
@@ -709,7 +709,7 @@ function findPairConfinementHint(
                   { regions: [g1, g2], cols: [a, b] },
                 ),
                 step(
-                  `Cell (row ${ord(r)}, column ${ord(c)}) is in Region ${rid + 1} but on a different column. Mark it.`,
+                  `Cell (row ${ord(r)}, column ${ord(c)}) is in one of those regions but on a different column. Mark it.`,
                   { regions: [g1, g2], cols: [a, b], primaryCell: [r, c] },
                 ),
               ],
@@ -774,10 +774,10 @@ function findCommonNeighborHint(
       cell: [tr, tc], action: 'place-mark',
       label: 'Both options block this',
       reason:
-        `Region ${rid + 1}'s star will go to (row ${ord(r1)}, col ${ord(c1)}) or ` +
+        `The highlighted region's star will go to (row ${ord(r1)}, col ${ord(c1)}) or ` +
         `(row ${ord(r2)}, col ${ord(c2)}). Either way, (row ${ord(tr)}, col ${ord(tc)}) is adjacent.`,
       steps: [
-        step(`Look at Region ${rid + 1}.`, { regions: [rid] }),
+        step(`Look at the highlighted region.`, { regions: [rid] }),
         step(
           `Only two cells in this region could still hold its star: (row ${ord(r1)}, col ${ord(c1)}) or (row ${ord(r2)}, col ${ord(c2)}).`,
           { regions: [rid], cells: [[r1, c1], [r2, c2]] },
@@ -949,9 +949,9 @@ function findTripleConfinementHint(
           cell: [row, c], action: 'place-mark',
           label: 'Region triple locks rows',
           reason:
-            `Regions ${list(regions)} together can only place stars on rows ${list(rows)}.`,
+            `The three highlighted regions together can only place stars on rows ${list(rows)}.`,
           steps: [
-            step(`Look at Regions ${list(regions)}.`, { regions }),
+            step(`Look at the three highlighted regions.`, { regions }),
             step(
               `Together, all their candidates fit in rows ${list(rows)}.`,
               { regions, rows },
@@ -961,7 +961,7 @@ function findTripleConfinementHint(
               { regions, rows },
             ),
             step(
-              `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in Region ${rid + 1}. Mark it.`,
+              `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in a different region. Mark it.`,
               { regions, rows, primaryCell: [row, c] },
             ),
           ],
@@ -984,9 +984,9 @@ function findTripleConfinementHint(
           cell: [r, col], action: 'place-mark',
           label: 'Region triple locks columns',
           reason:
-            `Regions ${list(regions)} together can only place stars in columns ${list(cols)}.`,
+            `The three highlighted regions together can only place stars in columns ${list(cols)}.`,
           steps: [
-            step(`Look at Regions ${list(regions)}.`, { regions }),
+            step(`Look at the three highlighted regions.`, { regions }),
             step(
               `Together, all their candidates fit in columns ${list(cols)}.`,
               { regions, cols },
@@ -996,7 +996,7 @@ function findTripleConfinementHint(
               { regions, cols },
             ),
             step(
-              `Cell (row ${ord(r)}, column ${ord(col)}) is in column ${ord(col)} but in Region ${rid + 1}. Mark it.`,
+              `Cell (row ${ord(r)}, column ${ord(col)}) is in column ${ord(col)} but in a different region. Mark it.`,
               { regions, cols, primaryCell: [r, col] },
             ),
           ],
@@ -1020,11 +1020,11 @@ function findTripleConfinementHint(
             cell: [r, cc], action: 'place-mark',
             label: 'Row triple locks regions',
             reason:
-              `Rows ${list(rows)} together can only place stars in regions ${list(regions)}.`,
+              `Rows ${list(rows)} together can only place stars in the three highlighted regions.`,
             steps: [
               step(`Look at Rows ${list(rows)}.`, { rows }),
               step(
-                `Together, all their candidates fit in regions ${list(regions)}.`,
+                `Together, all their candidates fit in the three highlighted regions.`,
                 { rows, regions },
               ),
               step(
@@ -1032,7 +1032,7 @@ function findTripleConfinementHint(
                 { rows, regions },
               ),
               step(
-                `Cell (row ${ord(r)}, column ${ord(cc)}) is in Region ${rid + 1} but on a different row. Mark it.`,
+                `Cell (row ${ord(r)}, column ${ord(cc)}) is in one of those regions but on a different row. Mark it.`,
                 { rows, regions, primaryCell: [r, cc] },
               ),
             ],
@@ -1057,11 +1057,11 @@ function findTripleConfinementHint(
             cell: [r, cc], action: 'place-mark',
             label: 'Column triple locks regions',
             reason:
-              `Columns ${list(cols)} together can only place stars in regions ${list(regions)}.`,
+              `Columns ${list(cols)} together can only place stars in the three highlighted regions.`,
             steps: [
               step(`Look at Columns ${list(cols)}.`, { cols }),
               step(
-                `Together, all their candidates fit in regions ${list(regions)}.`,
+                `Together, all their candidates fit in the three highlighted regions.`,
                 { cols, regions },
               ),
               step(
@@ -1069,7 +1069,7 @@ function findTripleConfinementHint(
                 { cols, regions },
               ),
               step(
-                `Cell (row ${ord(r)}, column ${ord(cc)}) is in Region ${rid + 1} but on a different column. Mark it.`,
+                `Cell (row ${ord(r)}, column ${ord(cc)}) is in one of those regions but on a different column. Mark it.`,
                 { cols, regions, primaryCell: [r, cc] },
               ),
             ],
@@ -1449,18 +1449,18 @@ function findLookaheadMarkHint(
             label: 'Lookahead',
             reason:
               `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
-              `Region ${xrid + 1} would have no remaining candidates. So this cell can't be a star — mark it.`,
+              `the highlighted region would have no remaining candidates. So this cell can't be a star — mark it.`,
             steps: [
               step(
                 `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
                 { primaryCell: [r, c] },
               ),
               step(
-                `That star's row, column, region, and 8-adjacent cells would all be ruled out for a star — including every remaining candidate of Region ${xrid + 1}.`,
+                `That star's row, column, region, and 8-adjacent cells would all be ruled out for a star — including every remaining candidate of the highlighted region.`,
                 { primaryCell: [r, c], regions: [xrid], cells: cands },
               ),
               step(
-                `Region ${xrid + 1} would be left with nowhere to put its star — a contradiction. So this cell can't be a star. Mark it.`,
+                `The highlighted region would be left with nowhere to put its star — a contradiction. So this cell can't be a star. Mark it.`,
                 { primaryCell: [r, c], regions: [xrid] },
               ),
             ],
@@ -1589,9 +1589,9 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         return {
           category: 'contradiction', cell: null, action: 'none',
           label: 'Conflict',
-          reason: `Two stars share Region ${rid + 1}.`,
+          reason: `Two stars share the highlighted region.`,
           steps: [step(
-            `Two stars share Region ${rid + 1} — at (${ord(pr)}, ${ord(pc)}) and (${ord(r)}, ${ord(c)}). Each region holds exactly one star. Undo one of them.`,
+            `Two stars share the highlighted region — at (${ord(pr)}, ${ord(pc)}) and (${ord(r)}, ${ord(c)}). Each region holds exactly one star. Undo one of them.`,
             { regions: [rid], cells: [[pr, pc], [r, c]] },
           )],
         }
@@ -1688,10 +1688,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         cell: null, action: 'none',
         label: 'Stuck',
         reason:
-          `Region ${rid + 1} has no cells where a star can still go — your marks have ruled them all out.`,
+          `The highlighted region has no cells where a star can still go — your marks have ruled them all out.`,
         steps: [
           step(
-            `Region ${rid + 1} has no cells where a star can still go — your marks have over-constrained it. Undo a recent mark or reset.`,
+            `The highlighted region has no cells where a star can still go — your marks have over-constrained it. Undo a recent mark or reset.`,
             { regions: [rid] },
           ),
         ],
@@ -1704,10 +1704,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         cell: [r, c], action: 'place-star',
         label: 'Forced region',
         reason:
-          `Region ${rid + 1} has exactly one cell where a star can still go: row ${ord(r)}, column ${ord(c)}.`,
+          `The highlighted region has exactly one cell where a star can still go: row ${ord(r)}, column ${ord(c)}.`,
         steps: [
           step(
-            `Look at Region ${rid + 1}. Each region holds exactly one star.`,
+            `Look at the highlighted region. Each region holds exactly one star.`,
             { regions: [rid] },
           ),
           step(
@@ -1871,7 +1871,7 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
 
     if (tightest) {
       const { kind, idx, count } = tightest
-      const name = kind === 'region' ? `Region ${idx + 1}` : kind === 'row' ? `Row ${ord(idx)}` : `Column ${ord(idx)}`
+      const name = kind === 'region' ? `The highlighted region` : kind === 'row' ? `Row ${ord(idx)}` : `Column ${ord(idx)}`
       const highlight: HintHighlight =
         kind === 'region' ? { regions: [idx] } :
         kind === 'row'    ? { rows: [idx] } :
