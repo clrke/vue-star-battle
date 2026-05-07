@@ -28,19 +28,22 @@ export interface PersistedProgression {
 // ── Level → grid size (level *determines* size; player has no choice) ────────
 
 /**
- * Step XP curve: each level's threshold equals the cumulative clean-win
- * rewards from previous levels. So one clean win at the level's grid size
- * exactly advances you to the next level. Hints cost XP, so a hint-heavy
- * solve can leave you below your previous threshold and drop you a level.
+ * Step XP curve: each level's threshold equals the cumulative XP earned
+ * by completing `winsToAdvance` clean wins at every previous level's size.
+ * So at level L, you need (winsToAdvance × cleanReward) more XP to reach L+1.
+ *
+ * Convention: winsToAdvance = the level's grid size (4 wins at 4×4, 5 at
+ * 5×5, …). Hints cost XP, so a hint-heavy solve can leave you below the
+ * previous threshold and drop you a level.
  */
-const LEVEL_TIERS: Array<{ level: number; size: number; reward: number }> = [
-  { level: 1, size: 4,  reward: 10  },
-  { level: 2, size: 5,  reward: 25  },
-  { level: 3, size: 6,  reward: 50  },
-  { level: 4, size: 7,  reward: 100 },
-  { level: 5, size: 8,  reward: 175 },
-  { level: 6, size: 10, reward: 350 },
-  { level: 7, size: 12, reward: 600 },
+const LEVEL_TIERS: Array<{ level: number; size: number; reward: number; winsToAdvance: number }> = [
+  { level: 1, size: 4,  reward: 10,  winsToAdvance: 4  },
+  { level: 2, size: 5,  reward: 25,  winsToAdvance: 5  },
+  { level: 3, size: 6,  reward: 50,  winsToAdvance: 6  },
+  { level: 4, size: 7,  reward: 100, winsToAdvance: 7  },
+  { level: 5, size: 8,  reward: 175, winsToAdvance: 8  },
+  { level: 6, size: 10, reward: 350, winsToAdvance: 10 },
+  { level: 7, size: 12, reward: 600, winsToAdvance: 12 },
 ]
 
 /** Cumulative XP required to *reach* level L (so L1 = 0). */
@@ -48,7 +51,7 @@ export function cumXpForLevel(level: number): number {
   let xp = 0
   for (const tier of LEVEL_TIERS) {
     if (tier.level >= level) break
-    xp += tier.reward
+    xp += tier.reward * tier.winsToAdvance
   }
   return xp
 }
