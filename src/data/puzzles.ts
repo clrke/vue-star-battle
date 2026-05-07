@@ -1,4 +1,9 @@
 import type { Puzzle } from '../types/puzzle'
+import { computeDifficulty } from '../solver/difficulty'
+
+function withDifficulty(p: Puzzle): Puzzle {
+  return { ...p, difficulty: computeDifficulty(p) }
+}
 
 /**
  * 5×5 — unique solution: (r0,c3) (r1,c1) (r2,c4) (r3,c2) (r4,c0)
@@ -55,4 +60,4 @@ const puzzle8x8: Puzzle = {
   ],
 }
 
-export const puzzles: Puzzle[] = [puzzle5x5, puzzle6x6, puzzle8x8]
+export const puzzles: Puzzle[] = [puzzle5x5, puzzle6x6, puzzle8x8].map(withDifficulty)

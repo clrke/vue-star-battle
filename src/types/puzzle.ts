@@ -19,6 +19,12 @@ export interface Puzzle {
   n: number
   /** n×n grid of 0-based region IDs */
   grid: number[][]
+  /**
+   * Number of times the solver-fallback hint was needed to complete the puzzle
+   * from an empty board.  0 = pure logic; higher = more "leaps of faith" needed.
+   * Undefined for puzzles that pre-date this field.
+   */
+  difficulty?: number
 }
 
 export interface BorderEdges {

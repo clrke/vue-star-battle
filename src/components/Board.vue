@@ -71,6 +71,15 @@ function formatTime(ms: number): string {
 
 const n = computed(() => currentPuzzle.value.n)
 
+// ── Difficulty badge ──────────────────────────────────────────────────────────
+const difficultyLabel = computed(() => {
+  const d = currentPuzzle.value.difficulty
+  if (d === undefined) return null
+  if (d === 0) return { text: 'Pure logic', tier: 'easy' }
+  if (d <= 2)  return { text: `${d} leap${d > 1 ? 's' : ''}`, tier: 'medium' }
+  return               { text: `${d} leaps`, tier: 'hard' }
+})
+
 function getBorders(row: number, col: number): BorderEdges {
   const grid = currentPuzzle.value.grid
   const size = n.value
@@ -107,6 +116,12 @@ const hintAction = computed(() =>
         />
       </div>
       <span class="progress-label">{{ starCount }} / {{ n }} ★</span>
+      <span
+        v-if="difficultyLabel && !isSolved"
+        class="difficulty-badge"
+        :class="`difficulty-badge--${difficultyLabel.tier}`"
+        :title="`This puzzle requires ${difficultyLabel.tier === 'easy' ? 'no' : difficultyLabel.text + ' of'} solver hints to complete`"
+      >{{ difficultyLabel.text }}</span>
     </div>
 
     <!-- Grid -->
@@ -202,6 +217,20 @@ const hintAction = computed(() =>
 .progress--done .progress-time {
   color: var(--green);
 }
+
+.difficulty-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.difficulty-badge--easy   { background: rgba(39,174,96,0.14);  color: var(--green); }
+.difficulty-badge--medium { background: rgba(243,156,18,0.14); color: var(--amber); }
+.difficulty-badge--hard   { background: rgba(192,57,43,0.14);  color: var(--red);   }
 
 /* Board */
 .board {
