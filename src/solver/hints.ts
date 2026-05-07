@@ -8,26 +8,36 @@ import { getSolution } from './solver'
    board state, and explains *why*. Stops at the first hit so each hint reveals
    exactly one step of reasoning, mirroring how a human plays.
 
-   1. CONTRADICTION    — the marks/stars already break the puzzle
-   2. FORCED-REGION    — a region has exactly one star-eligible cell
-   3. FORCED-ROW       — a row     has exactly one star-eligible cell
-   4. FORCED-COL       — a column  has exactly one star-eligible cell
-   5. FALLBACK         — no simple deduction; reveal a cell from the unique
-                         solution and say so honestly
+   Search order:
+     1. CONTRADICTION    — marks/stars already break the puzzle
+     2. FORCED-REGION    — a region has exactly one star-eligible cell
+     3. FORCED-ROW       — a row     has exactly one star-eligible cell
+     4. FORCED-COL       — a column  has exactly one star-eligible cell
+     5. MARK-ADJACENT    — empty cell next to a placed star
+     6. MARK-REGION      — empty cell in the same region as a placed star
+     7. MARK-ROW         — empty cell in the same row as a placed star
+     8. MARK-COL         — empty cell in the same column as a placed star
+     9. FALLBACK         — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
   | 'forced-region'
   | 'forced-row'
   | 'forced-col'
+  | 'mark-adjacent'
+  | 'mark-region'
+  | 'mark-row'
+  | 'mark-col'
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
 
+export type HintAction = 'place-star' | 'place-mark' | 'none'
+
 export interface Hint {
   category: HintCategory
   cell: [number, number] | null
-  action: 'place-star' | 'none'
+  action: HintAction
   /** Plain-English reasoning shown to the player. */
   reason: string
   /** Short tag shown in the UI (e.g. "Forced region"). */
@@ -39,12 +49,10 @@ function eligibilityMask(puzzle: Puzzle, state: CellState[][]) {
   const { n, grid } = puzzle
   const possible = Array.from({ length: n }, () => new Array<boolean>(n).fill(true))
 
-  // Marks block placement
   for (let r = 0; r < n; r++)
     for (let c = 0; c < n; c++)
       if (state[r][c] === 'marked') possible[r][c] = false
 
-  // Each placed star eliminates its row, col, region, and 8-adjacents
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
       if (state[r][c] !== 'star') continue
@@ -64,20 +72,20 @@ function eligibilityMask(puzzle: Puzzle, state: CellState[][]) {
   return possible
 }
 
-/** Tracks which row/col/region already has a star placed. */
 function placedSets(puzzle: Puzzle, state: CellState[][]) {
   const rows    = new Set<number>()
   const cols    = new Set<number>()
   const regions = new Set<number>()
+  const stars: [number, number][] = []
   for (let r = 0; r < puzzle.n; r++)
     for (let c = 0; c < puzzle.n; c++)
       if (state[r][c] === 'star') {
         rows.add(r); cols.add(c); regions.add(puzzle.grid[r][c])
+        stars.push([r, c])
       }
-  return { rows, cols, regions }
+  return { rows, cols, regions, stars }
 }
 
-/** Find every star-eligible cell of a region/row/column. */
 function eligibleInRegion(puzzle: Puzzle, mask: boolean[][], rid: number) {
   const out: [number, number][] = []
   for (let r = 0; r < puzzle.n; r++)
@@ -97,6 +105,97 @@ function eligibleInCol(mask: boolean[][], c: number) {
 }
 
 const ord = (n: number) => `${n + 1}`
+
+// ── Mark-suggestion search ──────────────────────────────────────────────────
+
+function findMarkHint(
+  puzzle: Puzzle,
+  state: CellState[][],
+  stars: [number, number][],
+): Hint | null {
+  const { n, grid } = puzzle
+  if (stars.length === 0) return null
+
+  // 1. Adjacent to a placed star (most-overlooked rule for new players)
+  for (const [sr, sc] of stars) {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue
+        const r = sr + dr, c = sc + dc
+        if (r < 0 || r >= n || c < 0 || c >= n) continue
+        if (state[r][c] !== 'empty') continue
+        return {
+          category: 'mark-adjacent',
+          cell: [r, c],
+          action: 'place-mark',
+          label: 'Mark adjacent',
+          reason:
+            `Row ${ord(r)}, column ${ord(c)} is adjacent to the star at row ${ord(sr)}, ` +
+            `column ${ord(sc)}. Stars can't touch — not even diagonally — so a star can ` +
+            `never go here. Place a mark to remember.`,
+        }
+      }
+    }
+  }
+
+  // 2. Same region as a placed star
+  for (const [sr, sc] of stars) {
+    const rid = grid[sr][sc]
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (grid[r][c] !== rid) continue
+        if (r === sr && c === sc) continue
+        if (state[r][c] !== 'empty') continue
+        return {
+          category: 'mark-region',
+          cell: [r, c],
+          action: 'place-mark',
+          label: 'Mark region',
+          reason:
+            `Row ${ord(r)}, column ${ord(c)} is in the same region as the star at ` +
+            `row ${ord(sr)}, column ${ord(sc)}. Each region holds exactly one star, ` +
+            `so this cell can be marked.`,
+        }
+      }
+    }
+  }
+
+  // 3. Same row as a placed star
+  for (const [sr, sc] of stars) {
+    for (let c = 0; c < n; c++) {
+      if (c === sc) continue
+      if (state[sr][c] !== 'empty') continue
+      return {
+        category: 'mark-row',
+        cell: [sr, c],
+        action: 'place-mark',
+        label: 'Mark row',
+        reason:
+          `Row ${ord(sr)} already has its star at column ${ord(sc)}. ` +
+          `Each row holds exactly one star — mark column ${ord(c)} of this row.`,
+      }
+    }
+  }
+
+  // 4. Same column as a placed star
+  for (const [sr, sc] of stars) {
+    for (let r = 0; r < n; r++) {
+      if (r === sr) continue
+      if (state[r][sc] !== 'empty') continue
+      return {
+        category: 'mark-col',
+        cell: [r, sc],
+        action: 'place-mark',
+        label: 'Mark column',
+        reason:
+          `Column ${ord(sc)} already has its star at row ${ord(sr)}. ` +
+          `Each column holds exactly one star — mark row ${ord(r)} of this column.`,
+      }
+    }
+  }
+
+  return null
+}
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -161,7 +260,7 @@ export function deriveHint(puzzle: Puzzle, state: CellState[][]): Hint {
       }
     }
     if (cells.length === 1) {
-      const [_, c] = cells[0]
+      const [, c] = cells[0]
       return {
         category: 'forced-row',
         cell: [r, c], action: 'place-star',
@@ -199,7 +298,11 @@ export function deriveHint(puzzle: Puzzle, state: CellState[][]): Hint {
     }
   }
 
-  // ── 4. Fallback: reveal from unique solution ──
+  // ── 4. Suggest a mark from a placed star's eliminations ──
+  const markHint = findMarkHint(puzzle, state, placed.stars)
+  if (markHint) return markHint
+
+  // ── 5. Fallback: reveal from unique solution ──
   const solution = getSolution(puzzle)
   if (solution) {
     const next = solution.find(([r, c]) => state[r][c] !== 'star')

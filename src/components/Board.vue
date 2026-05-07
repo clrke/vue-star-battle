@@ -6,7 +6,7 @@ import Cell from './Cell.vue'
 import type { BorderEdges } from '../types/puzzle'
 
 const game = useGameStore()
-const { currentPuzzle, cellStates, violations, isSolved, hintCell, starCount } = storeToRefs(game)
+const { currentPuzzle, cellStates, violations, isSolved, hintCell, lastHint, starCount } = storeToRefs(game)
 
 const n = computed(() => currentPuzzle.value.n)
 
@@ -22,11 +22,16 @@ function getBorders(row: number, col: number): BorderEdges {
   }
 }
 
-const isViolated = (row: number, col: number) => violations.value.has(`${row},${col}`)
-const isHint     = (row: number, col: number) => {
+const isViolated  = (row: number, col: number) => violations.value.has(`${row},${col}`)
+const isHint      = (row: number, col: number) => {
   const h = hintCell.value
   return h !== null && h[0] === row && h[1] === col
 }
+const hintAction = computed(() =>
+  lastHint.value && (lastHint.value.action === 'place-mark' || lastHint.value.action === 'place-star')
+    ? lastHint.value.action
+    : null,
+)
 </script>
 
 <template>
@@ -60,6 +65,7 @@ const isHint     = (row: number, col: number) => {
           :borders="getBorders(r - 1, c - 1)"
           :is-violated="isViolated(r - 1, c - 1)"
           :is-hint="isHint(r - 1, c - 1)"
+          :hint-action="hintAction"
           @toggle-star="game.toggleStar(r - 1, c - 1)"
           @toggle-mark="game.toggleMark(r - 1, c - 1)"
         />

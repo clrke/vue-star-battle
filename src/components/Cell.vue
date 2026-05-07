@@ -23,6 +23,7 @@ defineProps<{
   borders: BorderEdges
   isViolated: boolean
   isHint: boolean
+  hintAction: 'place-star' | 'place-mark' | null
 }>()
 
 const emit = defineEmits<{
@@ -127,6 +128,7 @@ onUnmounted(clearPendingTap)
       'cell--marked': state === 'marked',
       'cell--violated': isViolated,
       'cell--hint': isHint,
+      'cell--hint-mark': isHint && hintAction === 'place-mark',
       'border-top': borders.top,
       'border-right': borders.right,
       'border-bottom': borders.bottom,
@@ -190,13 +192,20 @@ onUnmounted(clearPendingTap)
   pointer-events: none;
 }
 
-/* Hint pulse */
-@keyframes hint-pulse {
+/* Hint pulse — gold for star placement, blue for mark suggestion */
+@keyframes hint-pulse-star {
   0%, 100% { box-shadow: inset 0 0 0 3px #f39c12; }
   50%      { box-shadow: inset 0 0 0 3px #f1c40f, 0 0 12px 4px rgba(243, 156, 18, 0.5); }
 }
+@keyframes hint-pulse-mark {
+  0%, 100% { box-shadow: inset 0 0 0 3px #2980b9; }
+  50%      { box-shadow: inset 0 0 0 3px #3498db, 0 0 12px 4px rgba(41, 128, 185, 0.5); }
+}
 .cell--hint {
-  animation: hint-pulse 0.6s ease-in-out infinite;
+  animation: hint-pulse-star 0.6s ease-in-out infinite;
   z-index: 1;
+}
+.cell--hint-mark {
+  animation: hint-pulse-mark 0.6s ease-in-out infinite;
 }
 </style>

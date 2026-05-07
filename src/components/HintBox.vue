@@ -14,6 +14,10 @@ const variantClass = computed(() => {
     case 'forced-region':
     case 'forced-row':
     case 'forced-col':       return 'hint--logic'
+    case 'mark-adjacent':
+    case 'mark-region':
+    case 'mark-row':
+    case 'mark-col':         return 'hint--mark'
     case 'fallback':         return 'hint--fallback'
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'
@@ -51,7 +55,8 @@ function dismiss() {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
-.hint--logic    { border-color: #2980b9; background: #eef6fb; }
+.hint--logic    { border-color: #1a1a2e; background: #f0f1f7; }
+.hint--mark     { border-color: #2980b9; background: #eef6fb; }
 .hint--fallback { border-color: #f39c12; background: #fdf6ec; }
 .hint--error    { border-color: #c0392b; background: #fbeeec; }
 .hint--done     { border-color: #27ae60; background: #ecf8ef; }
@@ -68,8 +73,9 @@ function dismiss() {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #2980b9;
+  color: #1a1a2e;
 }
+.hint--mark     .hint-label { color: #2980b9; }
 .hint--fallback .hint-label { color: #e67e22; }
 .hint--error    .hint-label { color: #c0392b; }
 .hint--done     .hint-label { color: #27ae60; }
