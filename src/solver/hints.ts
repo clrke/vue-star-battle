@@ -24,10 +24,13 @@ import { getSolution } from './solver'
      11. PAIR-CONFINEMENT      — two regions confined to the same 2 rows/cols
                                  (or two rows/cols confined to the same
                                  2 regions) → eliminate elsewhere
-     12. TRIPLE-CONFINEMENT    — Hall-style N=3 extension of the pair rule:
+     12. COMMON-NEIGHBOR       — region/row/col has 2 candidates; cells in the
+                                 8-adj intersection of both are blocked
+                                 regardless of which option wins
+     13. TRIPLE-CONFINEMENT    — Hall-style N=3 extension of the pair rule:
                                  three regions whose candidate row/col union
                                  is exactly 3 (and mirror) → eliminate elsewhere
-     13. FALLBACK              — reveal a cell from the unique solution
+     14. FALLBACK              — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
@@ -50,6 +53,9 @@ export type HintCategory =
   | 'triple-cols'           // three regions confined to the same 3 columns
   | 'triple-regions-rows'   // three rows confined to the same 3 regions
   | 'triple-regions-cols'   // three cols confined to the same 3 regions
+  | 'common-neighbor-region' // region has 2 candidates; this cell is 8-adjacent to both
+  | 'common-neighbor-row'    // row has 2 candidates; this cell is 8-adjacent to both
+  | 'common-neighbor-col'    // col has 2 candidates; this cell is 8-adjacent to both
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
@@ -710,6 +716,148 @@ function findPairConfinementHint(
   return null
 }
 
+// ── Common-neighbor elimination ─────────────────────────────────────────────
+
+/**
+ * If a region/row/column has exactly TWO eligible cells A and B, the star
+ * MUST land on one of them. Any empty cell that is 8-adjacent to BOTH A and B
+ * therefore can't hold a star — whichever option wins, this cell is touching
+ * a star. Mark it.
+ *
+ * Geometrically: candidates A and B must be within Chebyshev distance ≤ 2 for
+ * any common neighbor to exist; otherwise no overlap.
+ */
+function findCommonNeighborHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n } = puzzle
+
+  /** First empty cell in the 8-adjacency intersection of two cells, if any. */
+  function commonNeighbor(cands: [number, number][]): [number, number] | null {
+    const [[r1, c1], [r2, c2]] = cands
+    const minR = Math.max(0, Math.max(r1, r2) - 1)
+    const maxR = Math.min(n - 1, Math.min(r1, r2) + 1)
+    const minC = Math.max(0, Math.max(c1, c2) - 1)
+    const maxC = Math.min(n - 1, Math.min(c1, c2) + 1)
+    if (minR > maxR || minC > maxC) return null
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        if ((r === r1 && c === c1) || (r === r2 && c === c2)) continue
+        if (state[r][c] !== 'empty') continue
+        return [r, c]
+      }
+    }
+    return null
+  }
+
+  // ── Region with exactly 2 candidates ──
+  for (let rid = 0; rid < n; rid++) {
+    if (placed.regions.has(rid)) continue
+    const cands = eligibleInRegion(puzzle, mask, rid)
+    if (cands.length !== 2) continue
+    const cn = commonNeighbor(cands)
+    if (!cn) continue
+    const [[r1, c1], [r2, c2]] = cands
+    const [tr, tc] = cn
+    return {
+      category: 'common-neighbor-region',
+      cell: [tr, tc], action: 'place-mark',
+      label: 'Both options block this',
+      reason:
+        `Region ${rid + 1}'s star will go to (row ${ord(r1)}, col ${ord(c1)}) or ` +
+        `(row ${ord(r2)}, col ${ord(c2)}). Either way, (row ${ord(tr)}, col ${ord(tc)}) is adjacent.`,
+      steps: [
+        step(`Look at Region ${rid + 1}.`, { regions: [rid] }),
+        step(
+          `Only two cells in this region could still hold its star: (row ${ord(r1)}, col ${ord(c1)}) or (row ${ord(r2)}, col ${ord(c2)}).`,
+          { regions: [rid], cells: [[r1, c1], [r2, c2]] },
+        ),
+        step(
+          `Cell (row ${ord(tr)}, col ${ord(tc)}) is 8-adjacent to BOTH options. Whichever one wins, this cell is touching a star.`,
+          { regions: [rid], cells: [[r1, c1], [r2, c2]], primaryCell: [tr, tc] },
+        ),
+        step(
+          `Mark it — it can never hold a star.`,
+          { regions: [rid], cells: [[r1, c1], [r2, c2]], primaryCell: [tr, tc] },
+        ),
+      ],
+    }
+  }
+
+  // ── Row with exactly 2 candidates ──
+  for (let r = 0; r < n; r++) {
+    if (placed.rows.has(r)) continue
+    const cands = eligibleInRow(mask, r)
+    if (cands.length !== 2) continue
+    const cn = commonNeighbor(cands)
+    if (!cn) continue
+    const [[, c1], [, c2]] = cands
+    const [tr, tc] = cn
+    return {
+      category: 'common-neighbor-row',
+      cell: [tr, tc], action: 'place-mark',
+      label: 'Both options block this',
+      reason:
+        `Row ${ord(r)}'s star will go to column ${ord(c1)} or ${ord(c2)}. ` +
+        `Either way, (row ${ord(tr)}, col ${ord(tc)}) is adjacent.`,
+      steps: [
+        step(`Look at Row ${ord(r)}.`, { rows: [r] }),
+        step(
+          `Only two columns could hold this row's star: ${ord(c1)} or ${ord(c2)}.`,
+          { rows: [r], cells: cands },
+        ),
+        step(
+          `Cell (row ${ord(tr)}, col ${ord(tc)}) is 8-adjacent to BOTH options. Whichever wins, this cell is touching a star.`,
+          { rows: [r], cells: cands, primaryCell: [tr, tc] },
+        ),
+        step(
+          `Mark it.`,
+          { rows: [r], cells: cands, primaryCell: [tr, tc] },
+        ),
+      ],
+    }
+  }
+
+  // ── Column with exactly 2 candidates ──
+  for (let c = 0; c < n; c++) {
+    if (placed.cols.has(c)) continue
+    const cands = eligibleInCol(mask, c)
+    if (cands.length !== 2) continue
+    const cn = commonNeighbor(cands)
+    if (!cn) continue
+    const [[r1], [r2]] = cands
+    const [tr, tc] = cn
+    return {
+      category: 'common-neighbor-col',
+      cell: [tr, tc], action: 'place-mark',
+      label: 'Both options block this',
+      reason:
+        `Column ${ord(c)}'s star will go to row ${ord(r1)} or ${ord(r2)}. ` +
+        `Either way, (row ${ord(tr)}, col ${ord(tc)}) is adjacent.`,
+      steps: [
+        step(`Look at Column ${ord(c)}.`, { cols: [c] }),
+        step(
+          `Only two rows could hold this column's star: ${ord(r1)} or ${ord(r2)}.`,
+          { cols: [c], cells: cands },
+        ),
+        step(
+          `Cell (row ${ord(tr)}, col ${ord(tc)}) is 8-adjacent to BOTH options. Whichever wins, this cell is touching a star.`,
+          { cols: [c], cells: cands, primaryCell: [tr, tc] },
+        ),
+        step(
+          `Mark it.`,
+          { cols: [c], cells: cands, primaryCell: [tr, tc] },
+        ),
+      ],
+    }
+  }
+
+  return null
+}
+
 // ── Triple confinement (Hall-style N=3 generalization of pair) ──────────────
 
 /**
@@ -1093,11 +1241,15 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const pair = findPairConfinementHint(puzzle, state, mask, placed)
   if (pair) return pair
 
-  // ── 7. Triple confinement (Hall-style N=3 generalization) ──
+  // ── 7. Common-neighbor elimination (2-candidate intersection) ──
+  const cn = findCommonNeighborHint(puzzle, state, mask, placed)
+  if (cn) return cn
+
+  // ── 8. Triple confinement (Hall-style N=3 generalization) ──
   const triple = findTripleConfinementHint(puzzle, state, mask, placed)
   if (triple) return triple
 
-  // ── 8. Fallback: reveal from unique solution ──
+  // ── 9. Fallback: reveal from unique solution ──
   const solution = getSolution(puzzle)
   if (solution) {
     const next = solution.find(([r, c]) => state[r][c] !== 'star')

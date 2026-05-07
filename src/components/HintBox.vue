@@ -32,7 +32,10 @@ const variantClass = computed(() => {
     case 'triple-rows':
     case 'triple-cols':
     case 'triple-regions-rows':
-    case 'triple-regions-cols': return 'hint--mark'
+    case 'triple-regions-cols':
+    case 'common-neighbor-region':
+    case 'common-neighbor-row':
+    case 'common-neighbor-col': return 'hint--mark'
     case 'fallback':         return 'hint--fallback'
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'
