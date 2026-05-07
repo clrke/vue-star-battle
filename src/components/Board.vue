@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useGameStore } from '../stores/game'
 import { useProgressionStore } from '../stores/progression'
 import Cell from './Cell.vue'
+import Confetti from './Confetti.vue'
 import type { BorderEdges } from '../types/puzzle'
 
 const game        = useGameStore()
@@ -46,7 +47,9 @@ watch(isSolved, (solved) => {
     // Freeze on the final time captured at solve
     if (lastSolve.value?.elapsedMs != null) elapsedMs.value = lastSolve.value.elapsedMs
     stopTimer()
+    showConfetti.value = true
   } else {
+    showConfetti.value = false
     startTimer()
   }
 })
@@ -94,7 +97,9 @@ const hintAction = computed(() =>
     : null,
 )
 
-// ── Hover crosshair (mouse only) ──────────────────────────────────────────
+// ── Confetti ──────────────────────────────────────────────────────────────
+const showConfetti = ref(false)
+
 // Track which cell the mouse is currently over so we can tint the rest of
 // its row and column. Cleared on pointerleave from the board. Cells filter
 // to pointerType === 'mouse', and the visual is also gated behind
@@ -154,8 +159,25 @@ function onBoardLeave() { hoverCell.value = null }
     </div>
 
     <Transition name="solved">
-      <div v-if="isSolved" class="solved-banner">🎉 Solved!</div>
+      <div v-if="isSolved" class="solved-banner">
+        <div class="solved-main">🎉 Solved!</div>
+        <div v-if="lastSolve" class="solved-stats">
+          <span class="solved-time">{{ formatTime(lastSolve.elapsedMs) }}</span>
+          <span class="solved-sep">·</span>
+          <span class="solved-xp" :class="lastSolve.gained >= 0 ? 'solved-xp--pos' : 'solved-xp--neg'">
+            {{ lastSolve.gained >= 0 ? '+' : '' }}{{ lastSolve.gained }} XP
+          </span>
+          <template v-if="lastSolve.isPersonalBest">
+            <span class="solved-sep">·</span>
+            <span class="solved-pb">🏆 Best!</span>
+          </template>
+        </div>
+        <div v-if="lastSolve?.leveledUp" class="solved-level">⬆ Leveled up!</div>
+        <div v-else-if="lastSolve?.leveledDown" class="solved-level solved-level--down">⬇ Level down</div>
+      </div>
     </Transition>
+
+    <Confetti :active="showConfetti" @done="showConfetti = false" />
   </div>
 </template>
 
@@ -238,11 +260,43 @@ function onBoardLeave() { hoverCell.value = null }
 }
 
 .solved-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.solved-main {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--green);
   letter-spacing: 0.02em;
 }
+
+.solved-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.solved-sep { opacity: 0.4; }
+
+.solved-xp--pos { color: var(--green); }
+.solved-xp--neg { color: var(--red, #e74c3c); }
+
+.solved-pb { color: #f7c948; }
+
+.solved-level {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--green);
+}
+.solved-level--down { color: var(--text-muted); }
 
 .solved-enter-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .solved-enter-from   { opacity: 0; transform: scale(0.6); }

@@ -162,8 +162,8 @@ export const useProgressionStore = defineStore('progression', () => {
   /**
    * Record a successful solve. Returns the XP awarded so the UI can announce it.
    */
-  function awardSolve(): { gained: number; level: number; leveledUp: boolean; leveledDown: boolean; elapsedMs: number } {
-    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, leveledDown: false, elapsedMs: 0 }
+  function awardSolve(): { gained: number; level: number; leveledUp: boolean; leveledDown: boolean; elapsedMs: number; isPersonalBest: boolean } {
+    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, leveledDown: false, elapsedMs: 0, isPersonalBest: false }
 
     const n          = current.value.puzzle.n
     const elapsedMs  = getElapsedMs()
@@ -178,11 +178,14 @@ export const useProgressionStore = defineStore('progression', () => {
     totalTimeMs.value += elapsedMs
 
     const stats = ensureSizeStats(n)
+    const prevBestTimeMs = stats.bestTimeMs   // capture before update
     stats.solved += 1
     stats.totalTimeMs += elapsedMs
     stats.hintsUsed += hintsUsed
     if (stats.bestTimeMs === null || elapsedMs < stats.bestTimeMs)
       stats.bestTimeMs = elapsedMs
+
+    const isPersonalBest = prevBestTimeMs === null || elapsedMs < prevBestTimeMs
 
     current.value = null  // puzzle complete; clear in-progress save
 
@@ -192,6 +195,7 @@ export const useProgressionStore = defineStore('progression', () => {
       leveledUp:   level.value > prevLevel,
       leveledDown: level.value < prevLevel,
       elapsedMs,
+      isPersonalBest,
     }
   }
 

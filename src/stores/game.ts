@@ -13,6 +13,7 @@ export interface SolveResult {
   leveledUp: boolean
   leveledDown: boolean
   elapsedMs: number
+  isPersonalBest: boolean
 }
 
 export const useGameStore = defineStore('game', () => {
