@@ -45,7 +45,8 @@ onUnmounted(() => {
       <h1 class="app-title">★ Star Battle</h1>
       <p class="app-subtitle">
         Place one star in every row, column &amp; region — no two stars may touch.<br>
-        <small>Left-click = ★ &nbsp;·&nbsp; Right-click = mark dot &nbsp;·&nbsp; Ctrl+Z = undo</small>
+        <small class="hint-desktop">Left-click = ★ &nbsp;·&nbsp; Right-click = mark dot &nbsp;·&nbsp; Ctrl+Z = undo</small>
+        <small class="hint-touch">Single tap = mark dot &nbsp;·&nbsp; Double tap = ★</small>
       </p>
     </header>
 
@@ -90,8 +91,14 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 16px 14px 24px;
+  gap: 14px;
+  padding: 14px 10px 20px;
+}
+
+@media (max-width: 480px) {
+  .app { gap: 10px; padding: 8px 6px 16px; }
+  .app-title { font-size: 1.4rem !important; }
+  .app-subtitle { font-size: 0.78rem; line-height: 1.35; }
 }
 
 .app-header { text-align: center; }
@@ -109,8 +116,16 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 .app-subtitle small {
+  display: inline-block;
   font-size: 0.75rem;
   color: #888;
+}
+
+/* Show desktop hint for fine-pointer (mouse), touch hint for coarse-pointer */
+.hint-touch   { display: none; }
+@media (pointer: coarse) {
+  .hint-desktop { display: none; }
+  .hint-touch   { display: inline-block; }
 }
 
 .puzzle-controls {

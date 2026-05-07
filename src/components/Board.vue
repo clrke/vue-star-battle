@@ -60,8 +60,8 @@ const isHint     = (row: number, col: number) => {
           :borders="getBorders(r - 1, c - 1)"
           :is-violated="isViolated(r - 1, c - 1)"
           :is-hint="isHint(r - 1, c - 1)"
-          @click="game.toggleStar(r - 1, c - 1)"
-          @contextmenu="game.toggleMark(r - 1, c - 1)"
+          @toggle-star="game.toggleStar(r - 1, c - 1)"
+          @toggle-mark="game.toggleMark(r - 1, c - 1)"
         />
       </template>
     </div>
@@ -86,7 +86,7 @@ const isHint     = (row: number, col: number) => {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(90vw, 90vh, 560px);
+  width: min(95vw, 90vh, 560px);
 }
 
 .progress-track {
@@ -124,13 +124,15 @@ const isHint     = (row: number, col: number) => {
 /* Board */
 .board {
   display: grid;
-  width: min(90vw, 90vh, 560px);
-  height: min(90vw, 90vh, 560px);
+  width: min(95vw, 75vh, 560px);
+  height: min(95vw, 75vh, 560px);
   border: 3px solid #222;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
   border-radius: 4px;
   overflow: hidden;
   transition: box-shadow 0.4s ease;
+  /* Block pinch zoom on the board itself */
+  touch-action: manipulation;
 }
 
 .board--solved {
