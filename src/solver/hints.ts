@@ -1084,6 +1084,80 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const mask  = eligibilityMask(puzzle, state)
   const placed = placedSets(puzzle, state)
 
+  // ── 0. Visible violation check ────────────────────────────────────────────
+  // Detect stars that are already conflicting (same row/col/region or adjacent).
+  // The eligibility-mask logic assumes one star per row/col/region, so it would
+  // otherwise skip those lines and return a misleading "next move" hint.
+  {
+    const stars = placed.stars
+    const rowCount    = new Map<number, [number, number]>()
+    const colCount    = new Map<number, [number, number]>()
+    const regionCount = new Map<number, [number, number]>()
+
+    for (const [r, c] of stars) {
+      const rid = puzzle.grid[r][c]
+
+      if (rowCount.has(r)) {
+        const [pr, pc] = rowCount.get(r)!
+        return {
+          category: 'contradiction', cell: null, action: 'none',
+          label: 'Conflict',
+          reason: `Two stars share Row ${ord(r)}: columns ${ord(pc)} and ${ord(c)}.`,
+          steps: [step(
+            `Two stars share Row ${ord(r)} — columns ${ord(pc)} and ${ord(c)}. Each row can hold only one star. Undo one of them.`,
+            { rows: [r], cells: [[pr, pc], [r, c]] },
+          )],
+        }
+      }
+      rowCount.set(r, [r, c])
+
+      if (colCount.has(c)) {
+        const [pr, pc] = colCount.get(c)!
+        return {
+          category: 'contradiction', cell: null, action: 'none',
+          label: 'Conflict',
+          reason: `Two stars share Column ${ord(c)}: rows ${ord(pr)} and ${ord(r)}.`,
+          steps: [step(
+            `Two stars share Column ${ord(c)} — rows ${ord(pr)} and ${ord(r)}. Each column can hold only one star. Undo one of them.`,
+            { cols: [c], cells: [[pr, pc], [r, c]] },
+          )],
+        }
+      }
+      colCount.set(c, [r, c])
+
+      if (regionCount.has(rid)) {
+        const [pr, pc] = regionCount.get(rid)!
+        return {
+          category: 'contradiction', cell: null, action: 'none',
+          label: 'Conflict',
+          reason: `Two stars share Region ${rid + 1}.`,
+          steps: [step(
+            `Two stars share Region ${rid + 1} — at (${ord(pr)}, ${ord(pc)}) and (${ord(r)}, ${ord(c)}). Each region holds exactly one star. Undo one of them.`,
+            { regions: [rid], cells: [[pr, pc], [r, c]] },
+          )],
+        }
+      }
+      regionCount.set(rid, [r, c])
+    }
+
+    for (let i = 0; i < stars.length; i++) {
+      for (let j = i + 1; j < stars.length; j++) {
+        const [r1, c1] = stars[i], [r2, c2] = stars[j]
+        if (Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1) {
+          return {
+            category: 'contradiction', cell: null, action: 'none',
+            label: 'Conflict',
+            reason: `Stars at (${ord(r1)}, ${ord(c1)}) and (${ord(r2)}, ${ord(c2)}) are adjacent.`,
+            steps: [step(
+              `Stars at row ${ord(r1)} col ${ord(c1)} and row ${ord(r2)} col ${ord(c2)} are touching — stars may not be adjacent (including diagonally). Undo one of them.`,
+              { cells: [[r1, c1], [r2, c2]] },
+            )],
+          }
+        }
+      }
+    }
+  }
+
   const everySet =
     placed.rows.size === n &&
     placed.cols.size === n &&
