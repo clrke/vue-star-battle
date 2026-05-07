@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
 import Board from './components/Board.vue'
+import GeneratePanel from './components/GeneratePanel.vue'
 import { puzzles } from './data/puzzles'
 
 const game = useGameStore()
@@ -37,17 +38,25 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </p>
     </header>
 
-    <nav class="puzzle-nav">
-      <button
-        v-for="p in puzzles"
-        :key="p.id"
-        class="puzzle-btn"
-        :class="{ 'puzzle-btn--active': currentPuzzle.id === p.id }"
-        @click="game.initBoard(p)"
-      >
-        {{ p.title }}
-      </button>
-    </nav>
+    <div class="puzzle-controls">
+      <nav class="puzzle-nav">
+        <button
+          v-for="p in puzzles"
+          :key="p.id"
+          class="puzzle-btn"
+          :class="{ 'puzzle-btn--active': currentPuzzle.id === p.id }"
+          @click="game.initBoard(p)"
+        >
+          {{ p.title }}
+        </button>
+      </nav>
+
+      <div class="controls-divider">
+        <span>or generate</span>
+      </div>
+
+      <GeneratePanel />
+    </div>
 
     <main class="app-main">
       <Board />
@@ -96,11 +105,39 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   color: #888;
 }
 
+.puzzle-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
 .puzzle-nav {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.controls-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(400px, 90vw);
+  color: #aaa;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.controls-divider::before,
+.controls-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #ddd;
 }
 
 .puzzle-btn {
