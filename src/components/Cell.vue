@@ -303,15 +303,15 @@ onUnmounted(() => {
   pointer-events: none;
 }
 .cell__dot--user {
-  width: 35%;
-  height: 35%;
+  width: 23%;
+  height: 23%;
   background: var(--text);
 }
 /* Derived auto-mark — same opacity as user dot, just smaller and greyer
    to signal "locked / computed". */
 .cell__dot--auto {
-  width: 24%;
-  height: 24%;
+  width: 16%;
+  height: 16%;
   background: var(--text-muted);
 }
 
