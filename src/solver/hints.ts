@@ -8,16 +8,20 @@ import { getSolution } from './solver'
    board state, and explains *why*. Stops at the first hit so each hint reveals
    exactly one step of reasoning, mirroring how a human plays.
 
-   Search order:
-     1. CONTRADICTION    — marks/stars already break the puzzle
-     2. FORCED-REGION    — a region has exactly one star-eligible cell
-     3. FORCED-ROW       — a row     has exactly one star-eligible cell
-     4. FORCED-COL       — a column  has exactly one star-eligible cell
-     5. MARK-ADJACENT    — empty cell next to a placed star
-     6. MARK-REGION      — empty cell in the same region as a placed star
-     7. MARK-ROW         — empty cell in the same row as a placed star
-     8. MARK-COL         — empty cell in the same column as a placed star
-     9. FALLBACK         — reveal a cell from the unique solution
+   Search order (easiest → most advanced):
+      1. CONTRADICTION         — marks/stars already break the puzzle
+      2. FORCED-REGION         — region has exactly one eligible cell
+      3. FORCED-ROW            — row    has exactly one eligible cell
+      4. FORCED-COL            — column has exactly one eligible cell
+      5. MARK-ADJACENT         — empty cell next to a placed star
+      6. MARK-REGION           — empty cell in the region of a placed star
+      7. MARK-ROW              — empty cell in the row    of a placed star
+      8. MARK-COL              — empty cell in the column of a placed star
+      9. POINTING-REGION       — region's candidates all share a row/column
+                                 → eliminate from that row/column elsewhere
+     10. CLAIMING-ROW/COL      — row/col candidates all share a region
+                                 → eliminate from that region elsewhere
+     11. FALLBACK              — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
@@ -28,6 +32,10 @@ export type HintCategory =
   | 'mark-region'
   | 'mark-row'
   | 'mark-col'
+  | 'pointing-region-row'   // a region's candidates all sit in one row
+  | 'pointing-region-col'   // a region's candidates all sit in one column
+  | 'claiming-row'          // a row's candidates all sit in one region
+  | 'claiming-col'          // a column's candidates all sit in one region
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
@@ -197,6 +205,139 @@ function findMarkHint(
   return null
 }
 
+// ── Confinement reasoning (pointing / claiming) ─────────────────────────────
+
+/**
+ * Pointing & claiming, named by analogy with Sudoku:
+ *
+ *   POINTING — a region's eligible cells all sit on a single row (or column).
+ *   That row's star is therefore *forced* into this region, so any other-region
+ *   cell in that row can be marked.
+ *
+ *   CLAIMING — a row (or column) has all of its eligible cells inside a single
+ *   region. That region's star is therefore forced into this row, so any other
+ *   cell of the same region in a different row can be marked.
+ *
+ * These are the strongest non-trial deductions in 1★ Star Battle and unlock
+ * most "no progress" situations after the easy moves are exhausted.
+ */
+function findConfinementHint(
+  puzzle: Puzzle,
+  state: CellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n, grid } = puzzle
+
+  // ── Pointing: a region's candidates all share a row or column ──
+  for (let rid = 0; rid < n; rid++) {
+    if (placed.regions.has(rid)) continue
+    const cells = eligibleInRegion(puzzle, mask, rid)
+    if (cells.length < 2) continue   // 0/1 handled by forced-region
+
+    const rows = new Set(cells.map(([r]) => r))
+    const cols = new Set(cells.map(([, c]) => c))
+
+    if (rows.size === 1) {
+      const row = cells[0][0]
+      // Eliminate empty cells in `row` that belong to a different region
+      for (let c = 0; c < n; c++) {
+        if (grid[row][c] === rid) continue
+        if (state[row][c] !== 'empty') continue
+        if (!mask[row][c]) continue   // already eliminated by something else
+        return {
+          category: 'pointing-region-row',
+          cell: [row, c], action: 'place-mark',
+          label: 'Region locks row',
+          reason:
+            `Every cell where region ${rid + 1}'s star could still go is on row ${ord(row)}. ` +
+            `So row ${ord(row)}'s one star *must* come from region ${rid + 1} — ` +
+            `which means row ${ord(row)}, column ${ord(c)} (a different region) cannot have one. Mark it.`,
+        }
+      }
+    }
+
+    if (cols.size === 1) {
+      const col = cells[0][1]
+      for (let r = 0; r < n; r++) {
+        if (grid[r][col] === rid) continue
+        if (state[r][col] !== 'empty') continue
+        if (!mask[r][col]) continue
+        return {
+          category: 'pointing-region-col',
+          cell: [r, col], action: 'place-mark',
+          label: 'Region locks column',
+          reason:
+            `Every cell where region ${rid + 1}'s star could still go is in column ${ord(col)}. ` +
+            `So column ${ord(col)}'s one star *must* come from region ${rid + 1} — ` +
+            `which means row ${ord(r)}, column ${ord(col)} (a different region) cannot have one. Mark it.`,
+        }
+      }
+    }
+  }
+
+  // ── Claiming: a row's candidates all share a region ──
+  for (let r = 0; r < n; r++) {
+    if (placed.rows.has(r)) continue
+    const cells = eligibleInRow(mask, r)
+    if (cells.length < 2) continue
+
+    const regionsInRow = new Set(cells.map(([, c]) => grid[r][c]))
+    if (regionsInRow.size !== 1) continue
+    const rid = grid[r][cells[0][1]]
+
+    // Eliminate empty cells in `rid` that are NOT in row r
+    for (let rr = 0; rr < n; rr++) {
+      if (rr === r) continue
+      for (let c = 0; c < n; c++) {
+        if (grid[rr][c] !== rid) continue
+        if (state[rr][c] !== 'empty') continue
+        if (!mask[rr][c]) continue
+        return {
+          category: 'claiming-row',
+          cell: [rr, c], action: 'place-mark',
+          label: 'Row claims region',
+          reason:
+            `Every column where row ${ord(r)}'s star could still go is inside region ${rid + 1}. ` +
+            `So region ${rid + 1}'s one star *must* come from row ${ord(r)} — ` +
+            `which means row ${ord(rr)}, column ${ord(c)} (same region, different row) cannot have one. Mark it.`,
+        }
+      }
+    }
+  }
+
+  // ── Claiming: a column's candidates all share a region ──
+  for (let c = 0; c < n; c++) {
+    if (placed.cols.has(c)) continue
+    const cells = eligibleInCol(mask, c)
+    if (cells.length < 2) continue
+
+    const regionsInCol = new Set(cells.map(([r]) => grid[r][c]))
+    if (regionsInCol.size !== 1) continue
+    const rid = grid[cells[0][0]][c]
+
+    for (let r = 0; r < n; r++) {
+      for (let cc = 0; cc < n; cc++) {
+        if (cc === c) continue
+        if (grid[r][cc] !== rid) continue
+        if (state[r][cc] !== 'empty') continue
+        if (!mask[r][cc]) continue
+        return {
+          category: 'claiming-col',
+          cell: [r, cc], action: 'place-mark',
+          label: 'Column claims region',
+          reason:
+            `Every row where column ${ord(c)}'s star could still go is inside region ${rid + 1}. ` +
+            `So region ${rid + 1}'s one star *must* come from column ${ord(c)} — ` +
+            `which means row ${ord(r)}, column ${ord(cc)} (same region, different column) cannot have one. Mark it.`,
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function deriveHint(puzzle: Puzzle, state: CellState[][]): Hint {
@@ -302,7 +443,11 @@ export function deriveHint(puzzle: Puzzle, state: CellState[][]): Hint {
   const markHint = findMarkHint(puzzle, state, placed.stars)
   if (markHint) return markHint
 
-  // ── 5. Fallback: reveal from unique solution ──
+  // ── 5. Pointing / claiming (advanced confinement reasoning) ──
+  const advanced = findConfinementHint(puzzle, state, mask, placed)
+  if (advanced) return advanced
+
+  // ── 6. Fallback: reveal from unique solution ──
   const solution = getSolution(puzzle)
   if (solution) {
     const next = solution.find(([r, c]) => state[r][c] !== 'star')

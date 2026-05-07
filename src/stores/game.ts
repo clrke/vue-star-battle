@@ -130,6 +130,26 @@ export const useGameStore = defineStore('game', () => {
     return hint
   }
 
+  /** Apply the suggested action of the most-recent hint to the board. */
+  function applyHint(): boolean {
+    const h = lastHint.value
+    if (!h || !h.cell || h.action === 'none') return false
+    const [r, c] = h.cell
+    const cur = cellStates.value[r][c]
+
+    if (h.action === 'place-star' && cur !== 'star') {
+      pushHistory()
+      cellStates.value[r][c] = 'star'
+    } else if (h.action === 'place-mark' && cur !== 'marked') {
+      pushHistory()
+      cellStates.value[r][c] = 'marked'
+    } else {
+      return false
+    }
+    clearHint()
+    return true
+  }
+
   // ── Constraint violations ─────────────────────────────────────────────────
 
   const violations = computed<Set<string>>(() => {
@@ -202,6 +222,6 @@ export const useGameStore = defineStore('game', () => {
     hintCell, lastHint, lastSolve,
     canUndo, canRedo,
     toggleStar, toggleMark, undo, redo, reset,
-    initBoard, showHint, clearHint, resumeIfAvailable,
+    initBoard, showHint, applyHint, clearHint, resumeIfAvailable,
   }
 })

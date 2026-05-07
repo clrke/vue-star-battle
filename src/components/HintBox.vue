@@ -17,7 +17,11 @@ const variantClass = computed(() => {
     case 'mark-adjacent':
     case 'mark-region':
     case 'mark-row':
-    case 'mark-col':         return 'hint--mark'
+    case 'mark-col':
+    case 'pointing-region-row':
+    case 'pointing-region-col':
+    case 'claiming-row':
+    case 'claiming-col':     return 'hint--mark'
     case 'fallback':         return 'hint--fallback'
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'
@@ -25,8 +29,21 @@ const variantClass = computed(() => {
   }
 })
 
+const canApply = computed(() =>
+  lastHint.value?.cell != null && lastHint.value.action !== 'none',
+)
+
+const applyLabel = computed(() => {
+  if (!lastHint.value) return ''
+  return lastHint.value.action === 'place-star' ? 'Place ★' : 'Place dot'
+})
+
 function dismiss() {
   game.clearHint()
+}
+
+function apply() {
+  game.applyHint()
 }
 </script>
 
@@ -38,6 +55,9 @@ function dismiss() {
         <button class="hint-close" @click="dismiss" aria-label="Dismiss hint">×</button>
       </div>
       <p class="hint-reason">{{ lastHint.reason }}</p>
+      <div v-if="canApply" class="hint-actions">
+        <button class="hint-apply" @click="apply">{{ applyLabel }}</button>
+      </div>
     </div>
   </Transition>
 </template>
@@ -95,6 +115,31 @@ function dismiss() {
   margin: 0;
   color: #333;
 }
+
+.hint-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.hint-apply {
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: all 120ms ease;
+}
+
+.hint-box .hint-apply { color: #1a1a2e; }
+.hint--mark .hint-apply { color: #2980b9; }
+.hint--logic .hint-apply { color: #1a1a2e; }
+.hint--fallback .hint-apply { color: #e67e22; }
+
+.hint-apply:hover { background: rgba(0, 0, 0, 0.04); }
 
 /* Transition */
 .slide-down-enter-active, .slide-down-leave-active {
