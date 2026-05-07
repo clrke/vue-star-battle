@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
 import { useProgressionStore } from './stores/progression'
@@ -15,6 +15,13 @@ import { preGenerate } from './composables/useGenerator'
 const game        = useGameStore()
 const progression = useProgressionStore()
 const { currentPuzzle, isSolved, canUndo, canRedo } = storeToRefs(game)
+const { currentSize } = storeToRefs(progression)
+
+// Only show static puzzles matching the player's current level — they don't
+// get to pick smaller / larger boards.
+const availablePuzzles = computed(() =>
+  puzzles.filter(p => p.n === currentSize.value),
+)
 
 const { darkMode, toggleDark } = useDarkMode()
 const showStats = ref(false)
@@ -38,8 +45,8 @@ function onVisibility() {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('visibilitychange', onVisibility)
-  // Warm up the generator for the highest unlocked size
-  preGenerate(progression.maxN)
+  // Warm up the generator for the player's current level/size
+  preGenerate(progression.currentSize)
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -68,9 +75,9 @@ onUnmounted(() => {
     </div>
 
     <div class="puzzle-controls">
-      <nav class="puzzle-nav">
+      <nav v-if="availablePuzzles.length" class="puzzle-nav">
         <button
-          v-for="p in puzzles"
+          v-for="p in availablePuzzles"
           :key="p.id"
           class="puzzle-btn"
           :class="{ 'puzzle-btn--active': currentPuzzle.id === p.id }"
@@ -80,7 +87,7 @@ onUnmounted(() => {
         </button>
       </nav>
 
-      <div class="controls-divider"><span>or generate</span></div>
+      <div v-if="availablePuzzles.length" class="controls-divider"><span>or generate</span></div>
 
       <GeneratePanel />
     </div>

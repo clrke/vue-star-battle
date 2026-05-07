@@ -7,7 +7,7 @@ import { useGameStore } from '../stores/game'
 const progression = useProgressionStore()
 const game        = useGameStore()
 const {
-  level, xp, xpIntoLevel, xpForLevelSpan, xpToNextLevel, maxN,
+  level, xp, xpIntoLevel, xpForLevelSpan, xpToNextLevel, currentSize,
   totalSolved, totalHints, totalTimeMs,
 } = storeToRefs(progression)
 const { lastSolve } = storeToRefs(game)
@@ -15,14 +15,20 @@ const { lastSolve } = storeToRefs(game)
 const expanded = ref(false)
 const recentGain = ref<number | null>(null)
 const recentLevelUp = ref(false)
+const recentLevelDown = ref(false)
 let gainTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(lastSolve, (s) => {
-  if (!s || s.gained === 0) return
+  if (!s) return
   recentGain.value = s.gained
   recentLevelUp.value = s.leveledUp
+  recentLevelDown.value = s.leveledDown
   if (gainTimer) clearTimeout(gainTimer)
-  gainTimer = setTimeout(() => { recentGain.value = null; recentLevelUp.value = false }, 4000)
+  gainTimer = setTimeout(() => {
+    recentGain.value = null
+    recentLevelUp.value = false
+    recentLevelDown.value = false
+  }, 4000)
 })
 
 const progressPct = computed(() =>
@@ -43,7 +49,7 @@ function formatTime(ms: number) {
     <button class="hud-summary" @click="expanded = !expanded">
       <div class="hud-level">
         <span class="hud-level__num">Lv {{ level }}</span>
-        <span class="hud-level__max">Max size unlocked: {{ maxN }}×{{ maxN }}</span>
+        <span class="hud-level__max">Playing {{ currentSize }}×{{ currentSize }}</span>
       </div>
 
       <div class="hud-bar">
@@ -69,9 +75,17 @@ function formatTime(ms: number) {
     </Transition>
 
     <Transition name="float-up">
-      <div v-if="recentGain !== null" class="xp-toast" :class="{ 'xp-toast--levelup': recentLevelUp }">
-        <span v-if="recentLevelUp" class="xp-toast__levelup">★ Level Up! ★</span>
-        <span class="xp-toast__gain">+{{ recentGain }} XP</span>
+      <div
+        v-if="recentGain !== null"
+        class="xp-toast"
+        :class="{
+          'xp-toast--levelup':   recentLevelUp,
+          'xp-toast--leveldown': recentLevelDown,
+        }"
+      >
+        <span v-if="recentLevelUp"   class="xp-toast__levelup">★ Level Up! ★</span>
+        <span v-if="recentLevelDown" class="xp-toast__leveldown">▼ Level Down ▼</span>
+        <span class="xp-toast__gain">{{ recentGain >= 0 ? '+' : '' }}{{ recentGain }} XP</span>
       </div>
     </Transition>
   </div>
@@ -204,7 +218,12 @@ function formatTime(ms: number) {
   background: linear-gradient(90deg, #f39c12, #e67e22);
   box-shadow: 0 4px 16px rgba(243, 156, 18, 0.5);
 }
-.xp-toast__levelup { font-size: 0.75rem; letter-spacing: 0.05em; }
+.xp-toast--leveldown {
+  background: linear-gradient(90deg, #c0392b, #962f23);
+  box-shadow: 0 4px 16px rgba(192, 57, 43, 0.5);
+}
+.xp-toast__levelup,
+.xp-toast__leveldown { font-size: 0.75rem; letter-spacing: 0.05em; }
 
 .float-up-enter-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .float-up-leave-active { transition: all 0.3s ease; }

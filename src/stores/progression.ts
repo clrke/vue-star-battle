@@ -4,7 +4,7 @@ import type { Puzzle, CellState } from '../types/puzzle'
 import {
   cumXpForLevel,
   levelForXp,
-  maxNForSolves,
+  sizeForLevel,
   xpForSolve,
   type PerSizeStats,
   type PersistedProgression,
@@ -64,7 +64,10 @@ export const useProgressionStore = defineStore('progression', () => {
   const xpIntoLevel       = computed(() => xp.value - xpAtLevelStart.value)
   const xpForLevelSpan    = computed(() => xpAtNextLevel.value - xpAtLevelStart.value)
   const xpToNextLevel     = computed(() => xpAtNextLevel.value - xp.value)
-  const maxN              = computed(() => maxNForSolves(perSize.value))
+  /** Grid size to play right now — derived from level, no player choice. */
+  const currentSize       = computed(() => sizeForLevel(level.value))
+  /** Backwards-compat alias (some components still reference maxN). */
+  const maxN              = currentSize
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -136,8 +139,8 @@ export const useProgressionStore = defineStore('progression', () => {
   /**
    * Record a successful solve. Returns the XP awarded so the UI can announce it.
    */
-  function awardSolve(): { gained: number; level: number; leveledUp: boolean; elapsedMs: number } {
-    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, elapsedMs: 0 }
+  function awardSolve(): { gained: number; level: number; leveledUp: boolean; leveledDown: boolean; elapsedMs: number } {
+    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, leveledDown: false, elapsedMs: 0 }
 
     const n          = current.value.puzzle.n
     const elapsedMs  = getElapsedMs()
@@ -145,7 +148,9 @@ export const useProgressionStore = defineStore('progression', () => {
     const gained     = xpForSolve(n, hintsUsed)
 
     const prevLevel  = level.value
-    xp.value         += gained
+    // XP can drop from heavy hint use. Floor at 0 so a player can't sink
+    // below level 1.
+    xp.value         = Math.max(0, xp.value + gained)
     totalSolved.value += 1
     totalTimeMs.value += elapsedMs
 
@@ -161,7 +166,8 @@ export const useProgressionStore = defineStore('progression', () => {
     return {
       gained,
       level: level.value,
-      leveledUp: level.value > prevLevel,
+      leveledUp:   level.value > prevLevel,
+      leveledDown: level.value < prevLevel,
       elapsedMs,
     }
   }
@@ -183,7 +189,8 @@ export const useProgressionStore = defineStore('progression', () => {
     // state
     xp, totalSolved, totalHints, totalTimeMs, perSize, current,
     // derived
-    level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel, maxN,
+    level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
+    currentSize, maxN,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,
     awardSolve, clearCurrent, reset,
