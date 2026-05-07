@@ -1690,40 +1690,24 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const fish = findFishHint(puzzle, state, mask, placed)
   if (fish) return fish
 
-  // ── 11. Fallback: reveal from unique solution ──
-  const solution = getSolution(puzzle)
-  if (solution) {
-    const next = solution.find(([r, c]) => state[r][c] !== 'star')
-    if (next) {
-      const [r, c] = next
-      return {
-        category: 'fallback',
-        cell: [r, c], action: 'place-star',
-        label: 'Solver hint',
-        reason:
-          `No single forced move follows from the current board — you'll need a 2-step look-ahead. ` +
-          `The next solution star is at row ${ord(r)}, column ${ord(c)}.`,
-        steps: [
-          step(
-            `No single forced deduction is available from the current board.`,
-          ),
-          step(
-            `You'd need a 2-step look-ahead (e.g. "if I place here, that region runs out of options").`,
-          ),
-          step(
-            `The next star in the unique solution is at row ${ord(r)}, column ${ord(c)}. Place it, then mark cells around it to find the next move.`,
-            { primaryCell: [r, c] },
-          ),
-        ],
-      }
-    }
-  }
-
+  // ── 11. Fallback: no logical hint available ──
+  // We deliberately do NOT reveal the next solution cell — that's a freebie
+  // and players don't want it. Instead nudge them toward 2-step reasoning,
+  // undoing a recent mark, or just scanning more carefully.
   return {
     category: 'fallback',
     cell: null, action: 'none',
-    label: 'No deduction',
-    reason: 'No further deduction available from this state.',
-    steps: [step('No further deduction available from this state.')],
+    label: 'No logical hint',
+    reason:
+      'No single-step deduction fires for this board. Try a 2-step look-ahead, ' +
+      'undo a recent mark, or scan again — no freebies here.',
+    steps: [
+      step(
+        `No single forced deduction is available from the current board.`,
+      ),
+      step(
+        `Try a 2-step look-ahead: pick a candidate, see what it forces, and check for contradictions. Or undo a recent mark and re-examine.`,
+      ),
+    ],
   }
 }
