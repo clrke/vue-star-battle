@@ -96,7 +96,7 @@ onUnmounted(() => {
     <footer class="app-footer">
       <button class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
       <button class="footer-btn" title="Redo (Ctrl+Shift+Z)" :disabled="!canRedo" @click="game.redo()">↪ Redo</button>
-      <button class="footer-btn footer-btn--reset" title="Reset puzzle" @click="game.reset">Reset</button>
+      <button v-if="!isSolved" class="footer-btn footer-btn--reset" title="Reset puzzle" @click="game.reset">Reset</button>
       <button
         v-if="isSolved"
         class="footer-btn footer-btn--next"
