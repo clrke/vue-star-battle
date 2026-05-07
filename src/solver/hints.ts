@@ -56,6 +56,11 @@ export type HintCategory =
   | 'common-neighbor-region' // region has 2 candidates; this cell is 8-adjacent to both
   | 'common-neighbor-row'    // row has 2 candidates; this cell is 8-adjacent to both
   | 'common-neighbor-col'    // col has 2 candidates; this cell is 8-adjacent to both
+  | 'selfish-roommate'       // a candidate in a region is 8-adjacent to every other candidate
+  | 'squeeze-rows'           // two consecutive rows' eligible cols form exactly 2 non-adjacent cols → claim
+  | 'squeeze-cols'           // two consecutive cols' eligible rows form exactly 2 non-adjacent rows → claim
+  | 'fish-cols'              // 3 columns confined to the same 3 rows → eliminate other cols in those rows
+  | 'fish-rows'              // 3 rows confined to the same 3 cols → eliminate other rows in those cols
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
@@ -1077,6 +1082,373 @@ function findTripleConfinementHint(
   return null
 }
 
+// ── Selfish Roommate elimination ─────────────────────────────────────────────
+
+/**
+ * Within a region's candidate set, if one candidate C is 8-adjacent to EVERY
+ * other candidate in that region, then placing a star at C would block all
+ * remaining candidates via adjacency — leaving the region with no valid cell.
+ * ∴ C cannot be the star; eliminate it.
+ */
+function findSelfishRoommateHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n } = puzzle
+
+  function is8Adj(r1: number, c1: number, r2: number, c2: number) {
+    return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1
+  }
+
+  for (let rid = 0; rid < n; rid++) {
+    if (placed.regions.has(rid)) continue
+    const cands = eligibleInRegion(puzzle, mask, rid)
+    if (cands.length < 2) continue   // forced-region handles 0 or 1
+
+    for (const [cr, cc] of cands) {
+      // Check if this candidate is 8-adjacent to ALL other candidates
+      const others = cands.filter(([r, c]) => !(r === cr && c === cc))
+      const adjToAll = others.every(([r, c]) => is8Adj(cr, cc, r, c))
+      if (!adjToAll) continue
+      // Only suggest a mark if the cell is 'empty' (not already marked)
+      if (state[cr][cc] !== 'empty') continue
+
+      return {
+        category: 'selfish-roommate',
+        cell: [cr, cc],
+        action: 'place-mark',
+        label: 'Selfish roommate',
+        reason:
+          `Cell (row ${ord(cr)}, column ${ord(cc)}) is 8-adjacent to every other candidate in Region ${rid + 1}. ` +
+          `Placing a star here would block all other options for the region.`,
+        steps: [
+          step(
+            `Look at Region ${rid + 1}. It still needs a star somewhere among these ${cands.length} candidates.`,
+            { regions: [rid], cells: cands },
+          ),
+          step(
+            `Cell (row ${ord(cr)}, column ${ord(cc)}) is adjacent (including diagonally) to every other candidate in this region.`,
+            { regions: [rid], cells: others },
+          ),
+          step(
+            `If you placed a star here, all other candidates would be blocked, leaving the region with nowhere to go. Mark this cell.`,
+            { regions: [rid], primaryCell: [cr, cc] },
+          ),
+        ],
+      }
+    }
+  }
+  return null
+}
+
+// ── Squeeze (row-pair / col-pair confinement) ─────────────────────────────────
+
+/**
+ * For two consecutive rows where neither has a placed star:
+ * If the union of eligible columns is exactly 2 and those columns are NOT
+ * adjacent (so they can each host a star without touching), those two columns
+ * are "claimed" by these rows — any cell in those columns in other rows can be
+ * eliminated.
+ *
+ * If the union is exactly 2 adjacent columns, that is a contradiction (two
+ * stars in a 2×2 block would touch).
+ *
+ * Symmetric for consecutive columns.
+ */
+function findSqueezeHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n } = puzzle
+
+  // ── Squeeze-rows ──
+  for (let r = 0; r < n - 1; r++) {
+    if (placed.rows.has(r) || placed.rows.has(r + 1)) continue
+
+    const colSet = new Set<number>()
+    for (let c = 0; c < n; c++) {
+      if (mask[r][c] || mask[r + 1][c]) colSet.add(c)
+    }
+    if (colSet.size !== 2) continue
+
+    const [c1, c2] = [...colSet].sort((a, b) => a - b)
+
+    if (Math.abs(c1 - c2) === 1) {
+      // Adjacent columns → 2×2 block → contradiction
+      return {
+        category: 'contradiction',
+        cell: null, action: 'none',
+        label: 'Squeeze conflict',
+        reason:
+          `Rows ${ord(r)} and ${ord(r + 1)} each need a star, but their only eligible columns ` +
+          `(${ord(c1)} and ${ord(c2)}) form a 2×2 block that can hold at most one star.`,
+        steps: [
+          step(
+            `Rows ${ord(r)} and ${ord(r + 1)} each need a star, but together their eligible cells are confined to columns ${ord(c1)} and ${ord(c2)}.`,
+            { rows: [r, r + 1], cols: [c1, c2] },
+          ),
+          step(
+            `Columns ${ord(c1)} and ${ord(c2)} are adjacent — two stars in a 2×2 block would touch. This is a contradiction. Undo a recent mark.`,
+            { rows: [r, r + 1], cols: [c1, c2] },
+          ),
+        ],
+      }
+    }
+
+    // Non-adjacent: c1 and c2 are "claimed" by rows r, r+1
+    // Eliminate any other row's eligible cell in col c1 or c2
+    for (const col of [c1, c2]) {
+      for (let rr = 0; rr < n; rr++) {
+        if (rr === r || rr === r + 1) continue
+        if (!mask[rr][col]) continue
+        if (state[rr][col] !== 'empty') continue
+        return {
+          category: 'squeeze-rows',
+          cell: [rr, col], action: 'place-mark',
+          label: 'Squeeze (rows)',
+          reason:
+            `Rows ${ord(r)} and ${ord(r + 1)} can only place stars in columns ${ord(c1)} and ${ord(c2)}, so those columns are claimed.`,
+          steps: [
+            step(
+              `Look at rows ${ord(r)} and ${ord(r + 1)}. Each needs a star, and together their eligible cells are confined to just 2 columns: ${ord(c1)} and ${ord(c2)}.`,
+              { rows: [r, r + 1], cols: [c1, c2] },
+            ),
+            step(
+              `Since those two rows must each place a star in one of those two columns, columns ${ord(c1)} and ${ord(c2)} are fully claimed by rows ${ord(r)} and ${ord(r + 1)}.`,
+              { rows: [r, r + 1], cols: [c1, c2] },
+            ),
+            step(
+              `No other row can place its star in column ${ord(col)}. Mark this cell.`,
+              { rows: [r, r + 1], cols: [c1, c2], primaryCell: [rr, col] },
+            ),
+          ],
+        }
+      }
+    }
+  }
+
+  // ── Squeeze-cols ──
+  for (let c = 0; c < n - 1; c++) {
+    if (placed.cols.has(c) || placed.cols.has(c + 1)) continue
+
+    const rowSet = new Set<number>()
+    for (let r = 0; r < n; r++) {
+      if (mask[r][c] || mask[r][c + 1]) rowSet.add(r)
+    }
+    if (rowSet.size !== 2) continue
+
+    const [r1, r2] = [...rowSet].sort((a, b) => a - b)
+
+    if (Math.abs(r1 - r2) === 1) {
+      // Adjacent rows → 2×2 block → contradiction
+      return {
+        category: 'contradiction',
+        cell: null, action: 'none',
+        label: 'Squeeze conflict',
+        reason:
+          `Columns ${ord(c)} and ${ord(c + 1)} each need a star, but their only eligible rows ` +
+          `(${ord(r1)} and ${ord(r2)}) form a 2×2 block that can hold at most one star.`,
+        steps: [
+          step(
+            `Columns ${ord(c)} and ${ord(c + 1)} each need a star, but together their eligible cells are confined to rows ${ord(r1)} and ${ord(r2)}.`,
+            { cols: [c, c + 1], rows: [r1, r2] },
+          ),
+          step(
+            `Rows ${ord(r1)} and ${ord(r2)} are adjacent — two stars in a 2×2 block would touch. This is a contradiction. Undo a recent mark.`,
+            { cols: [c, c + 1], rows: [r1, r2] },
+          ),
+        ],
+      }
+    }
+
+    // Non-adjacent: r1 and r2 are "claimed" by cols c, c+1
+    for (const row of [r1, r2]) {
+      for (let cc = 0; cc < n; cc++) {
+        if (cc === c || cc === c + 1) continue
+        if (!mask[row][cc]) continue
+        if (state[row][cc] !== 'empty') continue
+        return {
+          category: 'squeeze-cols',
+          cell: [row, cc], action: 'place-mark',
+          label: 'Squeeze (columns)',
+          reason:
+            `Columns ${ord(c)} and ${ord(c + 1)} can only place stars in rows ${ord(r1)} and ${ord(r2)}, so those rows are claimed.`,
+          steps: [
+            step(
+              `Look at columns ${ord(c)} and ${ord(c + 1)}. Each needs a star, and together their eligible cells are confined to just 2 rows: ${ord(r1)} and ${ord(r2)}.`,
+              { cols: [c, c + 1], rows: [r1, r2] },
+            ),
+            step(
+              `Since those two columns must each place a star in one of those two rows, rows ${ord(r1)} and ${ord(r2)} are fully claimed by columns ${ord(c)} and ${ord(c + 1)}.`,
+              { cols: [c, c + 1], rows: [r1, r2] },
+            ),
+            step(
+              `No other column can place its star in row ${ord(row)}. Mark this cell.`,
+              { cols: [c, c + 1], rows: [r1, r2], primaryCell: [row, cc] },
+            ),
+          ],
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+// ── Fish (k=3, Swordfish-analog) ──────────────────────────────────────────────
+
+/**
+ * Fish at k=3 (Swordfish): if 3 columns have ALL their eligible cells confined
+ * to the same set of 3 rows, those 3 rows are "owned" by those 3 columns.
+ * Any other column that has eligible cells in those rows can be eliminated.
+ *
+ * Symmetric for 3 rows confined to 3 columns.
+ */
+function findFishHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n } = puzzle
+
+  const list3 = (xs: number[]) => xs.map(x => ord(x)).join(', ')
+
+  // ── Fish-cols: 3 columns confined to the same 3 rows ──
+  const unplacedCols: number[] = []
+  for (let c = 0; c < n; c++) {
+    if (!placed.cols.has(c)) unplacedCols.push(c)
+  }
+
+  for (let i = 0; i < unplacedCols.length; i++) {
+    const c1 = unplacedCols[i]
+    const rows1 = new Set<number>()
+    for (let r = 0; r < n; r++) if (mask[r][c1]) rows1.add(r)
+    if (rows1.size === 0 || rows1.size > 3) continue
+
+    for (let j = i + 1; j < unplacedCols.length; j++) {
+      const c2 = unplacedCols[j]
+      const rows2 = new Set<number>()
+      for (let r = 0; r < n; r++) if (mask[r][c2]) rows2.add(r)
+      if (rows2.size === 0 || rows2.size > 3) continue
+
+      for (let k = j + 1; k < unplacedCols.length; k++) {
+        const c3 = unplacedCols[k]
+        const rows3 = new Set<number>()
+        for (let r = 0; r < n; r++) if (mask[r][c3]) rows3.add(r)
+        if (rows3.size === 0 || rows3.size > 3) continue
+
+        const unionRows = new Set<number>([...rows1, ...rows2, ...rows3])
+        if (unionRows.size !== 3) continue
+
+        const fishCols = [c1, c2, c3].sort((a, b) => a - b)
+        const fishRows = [...unionRows].sort((a, b) => a - b)
+
+        // Look for eliminations: eligible cells in fishRows but NOT in fishCols
+        for (const row of fishRows) {
+          for (let c = 0; c < n; c++) {
+            if (fishCols.includes(c)) continue
+            if (!mask[row][c]) continue
+            if (state[row][c] !== 'empty') continue
+            return {
+              category: 'fish-cols',
+              cell: [row, c], action: 'place-mark',
+              label: 'Fish (columns)',
+              reason:
+                `Columns ${list3(fishCols)} can only place stars in rows ${list3(fishRows)}, ` +
+                `so no other column can use those rows.`,
+              steps: [
+                step(
+                  `Look at Columns ${list3(fishCols)}. Each must hold a star, and all their candidates lie in just 3 rows: ${list3(fishRows)}.`,
+                  { cols: fishCols },
+                ),
+                step(
+                  `Those 3 columns' stars must occupy those 3 rows — one per row.`,
+                  { rows: fishRows, cols: fishCols },
+                ),
+                step(
+                  `So in row ${ord(row)}, no star can go in any column other than ${list3(fishCols)}. Mark this cell.`,
+                  { rows: [row], primaryCell: [row, c] },
+                ),
+              ],
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Fish-rows: 3 rows confined to the same 3 columns ──
+  const unplacedRows: number[] = []
+  for (let r = 0; r < n; r++) {
+    if (!placed.rows.has(r)) unplacedRows.push(r)
+  }
+
+  for (let i = 0; i < unplacedRows.length; i++) {
+    const r1 = unplacedRows[i]
+    const cols1 = new Set<number>()
+    for (let c = 0; c < n; c++) if (mask[r1][c]) cols1.add(c)
+    if (cols1.size === 0 || cols1.size > 3) continue
+
+    for (let j = i + 1; j < unplacedRows.length; j++) {
+      const r2 = unplacedRows[j]
+      const cols2 = new Set<number>()
+      for (let c = 0; c < n; c++) if (mask[r2][c]) cols2.add(c)
+      if (cols2.size === 0 || cols2.size > 3) continue
+
+      for (let k = j + 1; k < unplacedRows.length; k++) {
+        const r3 = unplacedRows[k]
+        const cols3 = new Set<number>()
+        for (let c = 0; c < n; c++) if (mask[r3][c]) cols3.add(c)
+        if (cols3.size === 0 || cols3.size > 3) continue
+
+        const unionCols = new Set<number>([...cols1, ...cols2, ...cols3])
+        if (unionCols.size !== 3) continue
+
+        const fishRows = [r1, r2, r3].sort((a, b) => a - b)
+        const fishCols = [...unionCols].sort((a, b) => a - b)
+
+        // Look for eliminations: eligible cells in fishCols but NOT in fishRows
+        for (const col of fishCols) {
+          for (let r = 0; r < n; r++) {
+            if (fishRows.includes(r)) continue
+            if (!mask[r][col]) continue
+            if (state[r][col] !== 'empty') continue
+            return {
+              category: 'fish-rows',
+              cell: [r, col], action: 'place-mark',
+              label: 'Fish (rows)',
+              reason:
+                `Rows ${list3(fishRows)} can only place stars in columns ${list3(fishCols)}, ` +
+                `so no other row can use those columns.`,
+              steps: [
+                step(
+                  `Look at Rows ${list3(fishRows)}. Each must hold a star, and all their candidates lie in just 3 columns: ${list3(fishCols)}.`,
+                  { rows: fishRows },
+                ),
+                step(
+                  `Those 3 rows' stars must occupy those 3 columns — one per column.`,
+                  { rows: fishRows, cols: fishCols },
+                ),
+                step(
+                  `So in column ${ord(col)}, no star can go in any row other than ${list3(fishRows)}. Mark this cell.`,
+                  { cols: [col], primaryCell: [r, col] },
+                ),
+              ],
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
@@ -1307,6 +1679,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const markHint = findMarkHint(puzzle, state, placed.stars)
   if (markHint) return markHint
 
+  // ── 4b. Selfish roommate (single-region elimination) ──
+  const selfishRoommate = findSelfishRoommateHint(puzzle, state, mask, placed)
+  if (selfishRoommate) return selfishRoommate
+
   // ── 5. Pointing / claiming (advanced confinement reasoning) ──
   const advanced = findConfinementHint(puzzle, state, mask, placed)
   if (advanced) return advanced
@@ -1323,7 +1699,15 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const triple = findTripleConfinementHint(puzzle, state, mask, placed)
   if (triple) return triple
 
-  // ── 9. Fallback: reveal from unique solution ──
+  // ── 9. Squeeze (row/col-pair confinement to 2 columns/rows) ──
+  const squeeze = findSqueezeHint(puzzle, state, mask, placed)
+  if (squeeze) return squeeze
+
+  // ── 10. Fish k=3 (Swordfish-analog) ──
+  const fish = findFishHint(puzzle, state, mask, placed)
+  if (fish) return fish
+
+  // ── 11. Fallback: reveal from unique solution ──
   const solution = getSolution(puzzle)
   if (solution) {
     const next = solution.find(([r, c]) => state[r][c] !== 'star')

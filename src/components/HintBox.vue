@@ -35,8 +35,13 @@ const variantClass = computed(() => {
     case 'triple-regions-cols':
     case 'common-neighbor-region':
     case 'common-neighbor-row':
-    case 'common-neighbor-col': return 'hint--mark'
-    case 'fallback':         return 'hint--fallback'
+    case 'common-neighbor-col':
+    case 'selfish-roommate':
+    case 'squeeze-rows':
+    case 'squeeze-cols':
+    case 'fish-cols':
+    case 'fish-rows':          return 'hint--mark'
+    case 'fallback':           return 'hint--fallback'
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'
     default:                 return ''
