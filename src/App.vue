@@ -2,11 +2,15 @@
 import { onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
+import { useProgressionStore } from './stores/progression'
 import Board from './components/Board.vue'
 import GeneratePanel from './components/GeneratePanel.vue'
+import LevelHud from './components/LevelHud.vue'
+import HintBox from './components/HintBox.vue'
 import { puzzles } from './data/puzzles'
 
-const game = useGameStore()
+const game        = useGameStore()
+const progression = useProgressionStore()
 const { currentPuzzle, isSolved, canUndo, canRedo } = storeToRefs(game)
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
@@ -15,17 +19,24 @@ function onKeydown(e: KeyboardEvent) {
   if (!mod) return
   if (e.key === 'z') {
     e.preventDefault()
-    if (e.shiftKey) game.redo()
-    else            game.undo()
+    e.shiftKey ? game.redo() : game.undo()
   }
-  if (e.key === 'y') {
-    e.preventDefault()
-    game.redo()
-  }
+  if (e.key === 'y') { e.preventDefault(); game.redo() }
 }
 
-onMounted(()  => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+// Pause progression timer when tab hidden, resume on return
+function onVisibility() {
+  if (document.hidden) progression.pause()
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('visibilitychange', onVisibility)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('visibilitychange', onVisibility)
+})
 </script>
 
 <template>
@@ -37,6 +48,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         <small>Left-click = ★ &nbsp;·&nbsp; Right-click = mark dot &nbsp;·&nbsp; Ctrl+Z = undo</small>
       </p>
     </header>
+
+    <LevelHud />
 
     <div class="puzzle-controls">
       <nav class="puzzle-nav">
@@ -51,9 +64,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </button>
       </nav>
 
-      <div class="controls-divider">
-        <span>or generate</span>
-      </div>
+      <div class="controls-divider"><span>or generate</span></div>
 
       <GeneratePanel />
     </div>
@@ -61,6 +72,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     <main class="app-main">
       <Board />
     </main>
+
+    <HintBox />
 
     <footer class="app-footer">
       <button class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
@@ -77,31 +90,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  padding: 20px 16px 28px;
+  gap: 16px;
+  padding: 16px 14px 24px;
 }
 
-.app-header {
-  text-align: center;
-}
-
+.app-header { text-align: center; }
 .app-title {
-  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   color: #1a1a2e;
 }
-
 .app-subtitle {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   color: #555;
-  line-height: 1.6;
+  line-height: 1.5;
 }
-
 .app-subtitle small {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: #888;
 }
 
@@ -109,7 +117,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -120,44 +128,39 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   justify-content: center;
 }
 
+.puzzle-btn {
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 2px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #444;
+  transition: all 120ms ease;
+}
+.puzzle-btn:hover { border-color: #aaa; background: #f5f5f5; }
+.puzzle-btn--active {
+  border-color: #1a1a2e; background: #1a1a2e; color: #fff;
+}
+
 .controls-divider {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(400px, 90vw);
+  width: min(360px, 90vw);
   color: #aaa;
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-
 .controls-divider::before,
 .controls-divider::after {
   content: '';
   flex: 1;
   height: 1px;
   background: #ddd;
-}
-
-.puzzle-btn {
-  padding: 6px 16px;
-  border-radius: 999px;
-  border: 2px solid #ddd;
-  background: #fff;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #444;
-  transition: all 120ms ease;
-}
-
-.puzzle-btn:hover { border-color: #aaa; background: #f5f5f5; }
-
-.puzzle-btn--active {
-  border-color: #1a1a2e;
-  background: #1a1a2e;
-  color: #fff;
 }
 
 .app-main {
@@ -175,7 +178,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   justify-content: center;
 }
 
-/* Shared button base */
 .footer-btn {
   padding: 8px 20px;
   border-radius: 8px;
@@ -187,28 +189,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   color: #555;
   transition: all 120ms ease;
 }
-
 .footer-btn:hover:not(:disabled) { border-color: #aaa; color: #222; }
+.footer-btn:disabled { opacity: 0.35; cursor: default; }
 
-.footer-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
+.footer-btn--reset { border-color: #ccc; color: #555; }
 
-/* Variants */
-.footer-btn--reset {
-  border-color: #ccc;
-  color: #555;
-}
-
-.footer-btn--hint {
-  border-color: #f39c12;
-  color: #f39c12;
-}
-
+.footer-btn--hint { border-color: #f39c12; color: #f39c12; }
 .footer-btn--hint:hover:not(:disabled) {
-  background: #fef9f0;
-  border-color: #e67e22;
-  color: #e67e22;
+  background: #fef9f0; border-color: #e67e22; color: #e67e22;
 }
 </style>

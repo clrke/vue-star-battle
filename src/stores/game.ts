@@ -1,17 +1,30 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Puzzle, CellState } from '../types/puzzle'
 import { puzzles } from '../data/puzzles'
-import { getSolution } from '../solver/solver'
+import { deriveHint, type Hint } from '../solver/hints'
+import { useProgressionStore } from './progression'
 
 const MAX_HISTORY = 60
 
+export interface SolveResult {
+  gained: number
+  level: number
+  leveledUp: boolean
+}
+
 export const useGameStore = defineStore('game', () => {
+  const progression = useProgressionStore()
+
+  // ── Reactive state ────────────────────────────────────────────────────────
+
   const currentPuzzle = ref<Puzzle>(puzzles[0])
   const cellStates    = ref<CellState[][]>([])
   const hintCell      = ref<[number, number] | null>(null)
-  const history       = ref<CellState[][][]>([])  // undo stack
-  const future        = ref<CellState[][][]>([])  // redo stack
+  const lastHint      = ref<Hint | null>(null)
+  const history       = ref<CellState[][][]>([])
+  const future        = ref<CellState[][][]>([])
+  const lastSolve     = ref<SolveResult | null>(null)
 
   let hintTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -20,7 +33,6 @@ export const useGameStore = defineStore('game', () => {
   function snapshot(): CellState[][] {
     return cellStates.value.map(row => [...row])
   }
-
   function pushHistory() {
     history.value.push(snapshot())
     if (history.value.length > MAX_HISTORY) history.value.shift()
@@ -36,7 +48,22 @@ export const useGameStore = defineStore('game', () => {
     )
     history.value = []
     future.value  = []
+    lastSolve.value = null
     clearHint()
+    progression.startPuzzle(puzzle, cellStates.value)
+  }
+
+  /** Restore a saved-in-progress puzzle from progression. */
+  function resumeIfAvailable(): boolean {
+    const saved = progression.current
+    if (!saved) return false
+    currentPuzzle.value = saved.puzzle
+    cellStates.value = saved.cellStates.map(r => [...r])
+    history.value = []
+    future.value  = []
+    lastSolve.value = null
+    clearHint()
+    return true
   }
 
   function reset() {
@@ -49,10 +76,6 @@ export const useGameStore = defineStore('game', () => {
 
   // ── Cell interaction ──────────────────────────────────────────────────────
 
-  /**
-   * Left-click: toggle star.
-   * star → empty, anything else → star.
-   */
   function toggleStar(row: number, col: number) {
     clearHint()
     const cur = cellStates.value[row][col]
@@ -60,10 +83,6 @@ export const useGameStore = defineStore('game', () => {
     cellStates.value[row][col] = cur === 'star' ? 'empty' : 'star'
   }
 
-  /**
-   * Right-click: toggle mark dot.
-   * Starred cells are left alone; marked ↔ empty.
-   */
   function toggleMark(row: number, col: number) {
     clearHint()
     const cur = cellStates.value[row][col]
@@ -83,7 +102,6 @@ export const useGameStore = defineStore('game', () => {
     cellStates.value = history.value.pop()!
     clearHint()
   }
-
   function redo() {
     if (!canRedo.value) return
     history.value.push(snapshot())
@@ -96,18 +114,20 @@ export const useGameStore = defineStore('game', () => {
   function clearHint() {
     if (hintTimer) { clearTimeout(hintTimer); hintTimer = null }
     hintCell.value = null
+    lastHint.value = null
   }
 
-  function showHint() {
+  /** Returns the hint so the UI can display its reasoning text. */
+  function showHint(): Hint {
     clearHint()
-    const solution = getSolution(currentPuzzle.value)
-    if (!solution) return
-
-    const cell = solution.find(([r, c]) => cellStates.value[r][c] !== 'star')
-    if (!cell) return
-
-    hintCell.value = cell
-    hintTimer = setTimeout(() => { hintCell.value = null }, 2000)
+    const hint = deriveHint(currentPuzzle.value, cellStates.value)
+    lastHint.value = hint
+    if (hint.cell) {
+      hintCell.value = hint.cell
+      hintTimer = setTimeout(() => { hintCell.value = null }, 4000)
+    }
+    progression.recordHintUsed()
+    return hint
   }
 
   // ── Constraint violations ─────────────────────────────────────────────────
@@ -162,24 +182,26 @@ export const useGameStore = defineStore('game', () => {
     starCount.value === currentPuzzle.value.n && violations.value.size === 0,
   )
 
-  // Boot
-  initBoard(puzzles[0])
+  // Auto-save every change & detect solve transitions
+  watch(cellStates, (s) => progression.updatePuzzleState(s), { deep: true })
+
+  watch(isSolved, (solved, wasSolved) => {
+    if (solved && !wasSolved) {
+      lastSolve.value = progression.awardSolve()
+    }
+  })
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+
+  if (!resumeIfAvailable()) {
+    initBoard(puzzles[0])
+  }
 
   return {
-    currentPuzzle,
-    cellStates,
-    violations,
-    isSolved,
-    starCount,
-    hintCell,
-    canUndo,
-    canRedo,
-    toggleStar,
-    toggleMark,
-    undo,
-    redo,
-    reset,
-    initBoard,
-    showHint,
+    currentPuzzle, cellStates, violations, isSolved, starCount,
+    hintCell, lastHint, lastSolve,
+    canUndo, canRedo,
+    toggleStar, toggleMark, undo, redo, reset,
+    initBoard, showHint, clearHint, resumeIfAvailable,
   }
 })
