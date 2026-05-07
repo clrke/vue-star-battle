@@ -124,13 +124,29 @@ function handleContextMenu(e: MouseEvent) {
 
 import { computed } from 'vue'
 
-// ── Hint highlight overlay strength (0–4, additive) ─────────────────────────
-const highlightStrength = computed(() => (
-  (props.inHintRow ? 1 : 0) +
-  (props.inHintCol ? 1 : 0) +
-  (props.inHintRegion ? 1 : 0) +
-  (props.isHintExtra ? 1 : 0)
-))
+// ── Hint highlight overlays ─────────────────────────────────────────────────
+// Three distinct visual treatments so each entity reads differently:
+//   • Region → amber tint + amber outline drawn around the region's perimeter
+//   • Row/col → soft blue cell-level tint, additive at row∩col intersections
+//   • Extra cells → dashed violet ring inside the cell
+
+/** Box-shadow string that paints amber strokes only on the region's outer edges. */
+const regionOutlineShadow = computed(() => {
+  if (!props.inHintRegion) return ''
+  const c = '#f39c12'
+  const w = '3px'
+  const parts: string[] = []
+  if (props.borders.top)    parts.push(`inset 0 ${w} 0 ${c}`)
+  if (props.borders.right)  parts.push(`inset -${w} 0 0 ${c}`)
+  if (props.borders.bottom) parts.push(`inset 0 -${w} 0 ${c}`)
+  if (props.borders.left)   parts.push(`inset ${w} 0 0 ${c}`)
+  return parts.join(', ')
+})
+
+/** Row + col stack count (0–2) for the additive blue tint. */
+const lineHighlightStrength = computed(() =>
+  (props.inHintRow ? 1 : 0) + (props.inHintCol ? 1 : 0),
+)
 
 // ── Star-burst animation ───────────────────────────────────────────────────
 // One-shot ring + 8 outward-flying particles when a star is placed correctly.
@@ -179,16 +195,32 @@ onUnmounted(() => {
     @touchend="handleTouchEnd"
     @touchcancel="handleTouchCancel"
   >
+    <!-- Region highlight: amber tint + perimeter outline (treats region as one shape) -->
     <div
-      v-if="inHintRow || inHintCol || inHintRegion || isHintExtra"
-      class="cell__highlight"
-      :style="{ '--hl-strength': highlightStrength } as any"
+      v-if="inHintRegion"
+      class="cell__hl-region"
+      :style="{ boxShadow: regionOutlineShadow }"
+      aria-hidden="true"
+    />
+
+    <!-- Row / column highlight: soft blue cell tint, additive at intersections -->
+    <div
+      v-if="inHintRow || inHintCol"
+      class="cell__hl-line"
+      :style="{ '--hl-line-strength': lineHighlightStrength } as any"
+      aria-hidden="true"
+    />
+
+    <!-- Extra "look at this cell" highlight: dashed violet ring -->
+    <div
+      v-if="isHintExtra"
+      class="cell__hl-extra"
       aria-hidden="true"
     />
 
     <span v-if="state === 'star'"   class="cell__symbol cell__symbol--star">★</span>
-    <span v-else-if="state === 'marked'"      class="cell__symbol cell__symbol--mark">·</span>
-    <span v-else-if="state === 'auto-marked'" class="cell__symbol cell__symbol--auto">·</span>
+    <span v-else-if="state === 'marked'"      class="cell__dot cell__dot--user" aria-hidden="true" />
+    <span v-else-if="state === 'auto-marked'" class="cell__dot cell__dot--auto" aria-hidden="true" />
 
     <div v-if="burstActive" class="cell__burst" aria-hidden="true">
       <span class="cell__burst-ring" />
@@ -234,8 +266,26 @@ onUnmounted(() => {
 }
 
 .cell__symbol--star { color: #1a1a2e; }
-.cell__symbol--mark { color: #777; font-size: clamp(18px, 6cqi, 44px); }
-.cell__symbol--auto { color: #b5b5b5; font-size: clamp(12px, 4cqi, 28px); opacity: 0.85; }
+
+/* User-placed mark — solid round dot, 35 % of cell width */
+.cell__dot {
+  display: block;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.cell__dot--user {
+  width: 35%;
+  height: 35%;
+  background: #444;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+/* Derived auto-mark — smaller, dimmer, locked */
+.cell__dot--auto {
+  width: 24%;
+  height: 24%;
+  background: #888;
+  opacity: 0.55;
+}
 
 /* Auto-marks are locked: dim them and skip the hover/active feedback */
 .cell--auto-marked { cursor: default; }
@@ -248,8 +298,9 @@ onUnmounted(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(192, 57, 43, 0.12);
+  background: rgba(192, 57, 43, 0.18);
   pointer-events: none;
+  z-index: 2;
 }
 
 /* Hint pulse — gold for star placement, blue for mark suggestion */
@@ -269,15 +320,44 @@ onUnmounted(() => {
   animation: hint-pulse-mark 0.6s ease-in-out infinite;
 }
 
-/* Hint-step highlight: subtle blue tint, additive at intersections.
- * --hl-strength is the count of (row, col, region, extra) flags that are true. */
-.cell__highlight {
+/* ── Hint-step highlights ──────────────────────────────────────────────────
+ *
+ *  Region:  amber tint + amber outline along the region's outer perimeter.
+ *           The outline is built per-cell from `borders` flags via inset
+ *           box-shadows; adjacent in-region cells form one continuous outline.
+ *  Line:    soft blue cell tint for highlighted rows / columns, opacity
+ *           additive at row∩column intersections.
+ *  Extra:   dashed violet ring on a single supporting cell (e.g. the source
+ *           star for an "adjacent" hint).
+ *
+ * Different colors + different shapes ⇒ each entity reads distinctly when
+ * stacked on the same cell.
+ */
+.cell__hl-region {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 1;
-  background: rgba(41, 128, 185, calc(0.10 + 0.10 * var(--hl-strength)));
+  background: rgba(243, 156, 18, 0.16);
   transition: background 200ms ease;
+}
+
+.cell__hl-line {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(41, 128, 185, calc(0.12 + 0.12 * var(--hl-line-strength)));
+  transition: background 200ms ease;
+}
+
+.cell__hl-extra {
+  position: absolute;
+  inset: 12%;
+  pointer-events: none;
+  z-index: 2;
+  border: 2.5px dashed #8e44ad;
+  border-radius: 6px;
 }
 
 /* Star-burst: a one-shot expanding ring + 8 outward-flying particles. */
