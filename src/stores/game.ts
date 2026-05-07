@@ -242,9 +242,9 @@ export const useGameStore = defineStore('game', () => {
       return false
     }
     clearHint()
-    // Auto-advance: immediately queue the next hint so the player can chain
-    // without clicking "Hint" again after each apply.
-    if (!isSolved.value) showHint()
+    // Closed once the apply lands. The user clicks the Hint button again
+    // when they want another. Auto-advancing tended to surface the
+    // "No logical hint" fallback popup mid-flow, which was annoying.
     return true
   }
 

@@ -1692,21 +1692,17 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
 
   // ── 11. Fallback: no logical hint available ──
   // We deliberately do NOT reveal the next solution cell — that's a freebie
-  // and players don't want it. Instead nudge them toward 2-step reasoning,
-  // undoing a recent mark, or just scanning more carefully.
+  // and players don't want it. Single-step message so it reads as a toast
+  // rather than a multi-step walkthrough.
   return {
     category: 'fallback',
     cell: null, action: 'none',
     label: 'No logical hint',
     reason:
-      'No single-step deduction fires for this board. Try a 2-step look-ahead, ' +
-      'undo a recent mark, or scan again — no freebies here.',
+      'No single-step deduction fires for this state. Try a 2-step look-ahead or undo a recent mark.',
     steps: [
       step(
-        `No single forced deduction is available from the current board.`,
-      ),
-      step(
-        `Try a 2-step look-ahead: pick a candidate, see what it forces, and check for contradictions. Or undo a recent mark and re-examine.`,
+        `No single-step deduction fires from your current marks. Try a 2-step look-ahead, or undo a recent mark and re-scan.`,
       ),
     ],
   }
