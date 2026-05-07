@@ -4,7 +4,7 @@ import type { Puzzle, CellState } from '../types/puzzle'
 import {
   cumXpForLevel,
   levelForXp,
-  maxNForLevel,
+  maxNForSolves,
   xpForSolve,
   type PerSizeStats,
   type PersistedProgression,
@@ -64,7 +64,7 @@ export const useProgressionStore = defineStore('progression', () => {
   const xpIntoLevel       = computed(() => xp.value - xpAtLevelStart.value)
   const xpForLevelSpan    = computed(() => xpAtNextLevel.value - xpAtLevelStart.value)
   const xpToNextLevel     = computed(() => xpAtNextLevel.value - xp.value)
-  const maxN              = computed(() => maxNForLevel(level.value))
+  const maxN              = computed(() => maxNForSolves(perSize.value))
 
   // ── Persistence ────────────────────────────────────────────────────────────
 

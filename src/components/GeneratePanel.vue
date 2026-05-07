@@ -4,12 +4,13 @@ import { storeToRefs } from 'pinia'
 import { useGenerator } from '../composables/useGenerator'
 import { useGameStore } from '../stores/game'
 import { useProgressionStore } from '../stores/progression'
+import { unlockRequirement } from '../types/progression'
 
-const ALL_SIZES = [5, 6, 7, 8, 10, 12] as const
+const ALL_SIZES = [4, 5, 6, 7, 8, 10, 12] as const
 
 const game        = useGameStore()
 const progression = useProgressionStore()
-const { maxN, level } = storeToRefs(progression)
+const { maxN, perSize } = storeToRefs(progression)
 
 // Default to the highest unlocked size
 const selectedN = ref(maxN.value)
@@ -33,10 +34,13 @@ async function onGenerate() {
   }
 }
 
-const UNLOCK_LEVEL: Record<number, number> = { 6: 3, 7: 6, 8: 10, 10: 16, 12: 24 }
-const lockReasonFor = (n: number) =>
-  `Reach level ${UNLOCK_LEVEL[n] ?? n} to unlock ${n}×${n} puzzles. ` +
-  `(You're level ${level.value}.)`
+const lockReasonFor = (n: number) => {
+  const req = unlockRequirement(n)
+  if (!req) return `${n}×${n} puzzle`
+  const have = perSize.value[req.previousSize]?.solved ?? 0
+  return `Solve ${req.requiredSolves - have} more ${req.previousSize}×${req.previousSize} ` +
+    `puzzle${req.requiredSolves - have === 1 ? '' : 's'} to unlock ${n}×${n}.`
+}
 </script>
 
 <template>

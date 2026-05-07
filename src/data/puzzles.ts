@@ -12,6 +12,18 @@ function withDifficulty(p: Puzzle): Puzzle {
  * also re-run the find-pure script and keep `difficulty === 0`.
  */
 
+const puzzle4x4: Puzzle = {
+  id: 'classic-4',
+  title: 'Classic 4×4',
+  n: 4,
+  grid: [
+    [1, 0, 0, 0],
+    [1, 3, 3, 0],
+    [1, 3, 2, 2],
+    [1, 3, 2, 2],
+  ],
+}
+
 const puzzle5x5: Puzzle = {
   id: 'classic-5',
   title: 'Classic 5×5',
@@ -55,4 +67,4 @@ const puzzle8x8: Puzzle = {
   ],
 }
 
-export const puzzles: Puzzle[] = [puzzle5x5, puzzle6x6, puzzle8x8].map(withDifficulty)
+export const puzzles: Puzzle[] = [puzzle4x4, puzzle5x5, puzzle6x6, puzzle8x8].map(withDifficulty)

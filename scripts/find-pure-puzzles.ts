@@ -6,7 +6,7 @@
 import { generatePuzzle } from '../src/solver/generator'
 import { computeDifficulty } from '../src/solver/difficulty'
 
-const SIZES = [5, 6, 8]
+const SIZES = [4, 5, 6, 7, 8]
 const PER_SIZE_BUDGET_MS = 30_000
 
 function emit(title: string, p: ReturnType<typeof generatePuzzle>) {

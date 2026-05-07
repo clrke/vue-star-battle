@@ -6,6 +6,7 @@ export type GeneratorStatus = 'idle' | 'generating' | 'done' | 'failed'
 // Generation now strictly requires pure-logic puzzles (difficulty === 0).
 // Budgets sized for ~95 % success rate based on empirical pure-rate per size.
 const TIME_LIMITS: Record<number, number> = {
+  4:   3_000,
   5:   5_000,
   6:  12_000,
   7:  20_000,
