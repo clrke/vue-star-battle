@@ -260,7 +260,7 @@ onUnmounted(() => {
 .border-left   { border-left:   2.5px solid var(--border-strong); }
 
 .cell__symbol {
-  font-size: clamp(14px, 4cqi, 32px);
+  font-size: clamp(20px, 6cqi, 48px);
   line-height: 1;
   pointer-events: none;
 }
@@ -279,12 +279,12 @@ onUnmounted(() => {
   background: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
-/* Derived auto-mark — smaller, dimmer, locked */
+/* Derived auto-mark — same opacity as user dot, just smaller and greyer
+   to signal "locked / computed". */
 .cell__dot--auto {
   width: 24%;
   height: 24%;
   background: var(--text-muted);
-  opacity: 0.55;
 }
 
 /* Auto-marks are locked: dim them and skip the hover/active feedback */
