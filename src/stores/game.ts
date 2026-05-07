@@ -23,6 +23,7 @@ export const useGameStore = defineStore('game', () => {
   const cellStates    = ref<CellState[][]>([])
   const hintCell      = ref<[number, number] | null>(null)
   const lastHint      = ref<Hint | null>(null)
+  const hintStepIndex = ref(0)
   const history       = ref<CellState[][][]>([])
   const future        = ref<CellState[][][]>([])
   const lastSolve     = ref<SolveResult | null>(null)
@@ -166,6 +167,42 @@ export const useGameStore = defineStore('game', () => {
     if (hintTimer) { clearTimeout(hintTimer); hintTimer = null }
     hintCell.value = null
     lastHint.value = null
+    hintStepIndex.value = 0
+  }
+
+  // ── Step navigation ───────────────────────────────────────────────────────
+  const currentHintStep = computed(() => {
+    const h = lastHint.value
+    if (!h?.steps?.length) return null
+    const idx = Math.min(hintStepIndex.value, h.steps.length - 1)
+    return h.steps[idx]
+  })
+
+  const totalHintSteps  = computed(() => lastHint.value?.steps.length ?? 0)
+  const isFirstHintStep = computed(() => hintStepIndex.value <= 0)
+  const isLastHintStep  = computed(() =>
+    hintStepIndex.value >= (lastHint.value?.steps.length ?? 1) - 1,
+  )
+
+  function nextHintStep() {
+    if (!lastHint.value) return
+    if (hintStepIndex.value < lastHint.value.steps.length - 1) {
+      hintStepIndex.value++
+      syncHintHighlight()
+    }
+  }
+  function prevHintStep() {
+    if (hintStepIndex.value > 0) {
+      hintStepIndex.value--
+      syncHintHighlight()
+    }
+  }
+
+  /** Mirror the current step's primaryCell into hintCell so the cell pulses. */
+  function syncHintHighlight() {
+    const primary = currentHintStep.value?.highlight.primaryCell
+    hintCell.value = primary ?? null
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null }
   }
 
   /** Returns the hint so the UI can display its reasoning text. */
@@ -176,10 +213,8 @@ export const useGameStore = defineStore('game', () => {
     // claiming / pair-confinement on the auto-mark-aware eligibility mask.
     const hint = deriveHint(currentPuzzle.value, displayCellStates.value)
     lastHint.value = hint
-    if (hint.cell) {
-      hintCell.value = hint.cell
-      hintTimer = setTimeout(() => { hintCell.value = null }, 4000)
-    }
+    hintStepIndex.value = 0
+    syncHintHighlight()
     progression.recordHintUsed()
     return hint
   }
@@ -275,8 +310,10 @@ export const useGameStore = defineStore('game', () => {
     currentPuzzle, cellStates, displayCellStates,
     violations, isSolved, starCount,
     hintCell, lastHint, lastSolve,
+    hintStepIndex, currentHintStep, totalHintSteps, isFirstHintStep, isLastHintStep,
     canUndo, canRedo,
     toggleStar, toggleMark, undo, redo, reset,
     initBoard, showHint, applyHint, clearHint, resumeIfAvailable,
+    nextHintStep, prevHintStep,
   }
 })

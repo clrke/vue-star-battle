@@ -10,8 +10,23 @@ const game        = useGameStore()
 const progression = useProgressionStore()
 const {
   currentPuzzle, displayCellStates, violations, isSolved,
-  hintCell, lastHint, starCount, lastSolve,
+  hintCell, lastHint, starCount, lastSolve, currentHintStep,
 } = storeToRefs(game)
+
+// ── Highlight sets from the current hint step ────────────────────────────
+const hintRows    = computed(() => new Set(currentHintStep.value?.highlight.rows    ?? []))
+const hintCols    = computed(() => new Set(currentHintStep.value?.highlight.cols    ?? []))
+const hintRegions = computed(() => new Set(currentHintStep.value?.highlight.regions ?? []))
+const hintExtras  = computed(() => {
+  const s = new Set<string>()
+  for (const [r, c] of currentHintStep.value?.highlight.cells ?? []) s.add(`${r},${c}`)
+  return s
+})
+
+const inHintRow    = (r: number) => hintRows.value.has(r)
+const inHintCol    = (c: number) => hintCols.value.has(c)
+const inHintRegion = (r: number, c: number) => hintRegions.value.has(currentPuzzle.value.grid[r][c])
+const isHintExtra  = (r: number, c: number) => hintExtras.value.has(`${r},${c}`)
 
 // ── Live session timer ─────────────────────────────────────────────────────
 const elapsedMs = ref(progression.getElapsedMs())
@@ -113,6 +128,10 @@ const hintAction = computed(() =>
           :is-violated="isViolated(r - 1, c - 1)"
           :is-hint="isHint(r - 1, c - 1)"
           :hint-action="hintAction"
+          :in-hint-row="inHintRow(r - 1)"
+          :in-hint-col="inHintCol(c - 1)"
+          :in-hint-region="inHintRegion(r - 1, c - 1)"
+          :is-hint-extra="isHintExtra(r - 1, c - 1)"
           @toggle-star="game.toggleStar(r - 1, c - 1)"
           @toggle-mark="game.toggleMark(r - 1, c - 1)"
         />

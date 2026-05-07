@@ -1,4 +1,4 @@
-import type { Puzzle, DisplayCellState } from '../types/puzzle'
+import type { Puzzle, DisplayCellState, HintHighlight, HintStep } from '../types/puzzle'
 import { getSolution } from './solver'
 
 /* ============================================================================
@@ -60,11 +60,15 @@ export interface Hint {
   category: HintCategory
   cell: [number, number] | null
   action: HintAction
-  /** Plain-English reasoning shown to the player. */
+  /** Plain-English one-liner — kept for backward-compat / accessibility. */
   reason: string
   /** Short tag shown in the UI (e.g. "Forced region"). */
   label: string
+  /** Walk-through of the deduction; final step's highlight has the primary cell. */
+  steps: HintStep[]
 }
+
+const step = (text: string, highlight: HintHighlight = {}): HintStep => ({ text, highlight })
 
 /** Build the "could a star still go here?" mask from the current board. */
 function eligibilityMask(puzzle: Puzzle, state: DisplayCellState[][]) {
@@ -154,7 +158,21 @@ function findMarkHint(
           reason:
             `Row ${ord(r)}, column ${ord(c)} is adjacent to the star at row ${ord(sr)}, ` +
             `column ${ord(sc)}. Stars can't touch — not even diagonally — so a star can ` +
-            `never go here. Place a mark to remember.`,
+            `never go here.`,
+          steps: [
+            step(
+              `There's a star at row ${ord(sr)}, column ${ord(sc)}.`,
+              { cells: [[sr, sc]] },
+            ),
+            step(
+              `Stars cannot touch — not even diagonally. So all 8 neighbors of this star are blocked.`,
+              { cells: [[sr, sc]] },
+            ),
+            step(
+              `Cell (row ${ord(r)}, column ${ord(c)}) is one of those neighbors. Mark it.`,
+              { cells: [[sr, sc]], primaryCell: [r, c] },
+            ),
+          ],
         }
       }
     }
@@ -175,8 +193,21 @@ function findMarkHint(
           label: 'Mark region',
           reason:
             `Row ${ord(r)}, column ${ord(c)} is in the same region as the star at ` +
-            `row ${ord(sr)}, column ${ord(sc)}. Each region holds exactly one star, ` +
-            `so this cell can be marked.`,
+            `row ${ord(sr)}, column ${ord(sc)}. Each region holds exactly one star.`,
+          steps: [
+            step(
+              `Region ${rid + 1} already has its star at row ${ord(sr)}, column ${ord(sc)}.`,
+              { regions: [rid], cells: [[sr, sc]] },
+            ),
+            step(
+              `Each region holds exactly one star, so every other cell in Region ${rid + 1} can be ruled out.`,
+              { regions: [rid] },
+            ),
+            step(
+              `Mark cell (row ${ord(r)}, column ${ord(c)}).`,
+              { regions: [rid], primaryCell: [r, c] },
+            ),
+          ],
         }
       }
     }
@@ -193,8 +224,21 @@ function findMarkHint(
         action: 'place-mark',
         label: 'Mark row',
         reason:
-          `Row ${ord(sr)} already has its star at column ${ord(sc)}. ` +
-          `Each row holds exactly one star — mark column ${ord(c)} of this row.`,
+          `Row ${ord(sr)} already has its star at column ${ord(sc)}. Each row holds exactly one star.`,
+        steps: [
+          step(
+            `Row ${ord(sr)} already has its star at column ${ord(sc)}.`,
+            { rows: [sr], cells: [[sr, sc]] },
+          ),
+          step(
+            `Each row holds exactly one star — every other column in this row can be ruled out.`,
+            { rows: [sr] },
+          ),
+          step(
+            `Mark cell (row ${ord(sr)}, column ${ord(c)}).`,
+            { rows: [sr], primaryCell: [sr, c] },
+          ),
+        ],
       }
     }
   }
@@ -210,8 +254,21 @@ function findMarkHint(
         action: 'place-mark',
         label: 'Mark column',
         reason:
-          `Column ${ord(sc)} already has its star at row ${ord(sr)}. ` +
-          `Each column holds exactly one star — mark row ${ord(r)} of this column.`,
+          `Column ${ord(sc)} already has its star at row ${ord(sr)}. Each column holds exactly one star.`,
+        steps: [
+          step(
+            `Column ${ord(sc)} already has its star at row ${ord(sr)}.`,
+            { cols: [sc], cells: [[sr, sc]] },
+          ),
+          step(
+            `Each column holds exactly one star — every other row in this column can be ruled out.`,
+            { cols: [sc] },
+          ),
+          step(
+            `Mark cell (row ${ord(r)}, column ${ord(sc)}).`,
+            { cols: [sc], primaryCell: [r, sc] },
+          ),
+        ],
       }
     }
   }
@@ -264,9 +321,25 @@ function findConfinementHint(
           cell: [row, c], action: 'place-mark',
           label: 'Region locks row',
           reason:
-            `Every cell where region ${rid + 1}'s star could still go is on row ${ord(row)}. ` +
-            `So row ${ord(row)}'s one star *must* come from region ${rid + 1} — ` +
-            `which means row ${ord(row)}, column ${ord(c)} (a different region) cannot have one. Mark it.`,
+            `Every cell where Region ${rid + 1}'s star could still go is on row ${ord(row)}.`,
+          steps: [
+            step(
+              `Look at Region ${rid + 1}.`,
+              { regions: [rid] },
+            ),
+            step(
+              `Every cell where its star could still go is on row ${ord(row)}.`,
+              { regions: [rid], rows: [row] },
+            ),
+            step(
+              `So row ${ord(row)}'s one star MUST come from Region ${rid + 1}. No other region may use row ${ord(row)}.`,
+              { regions: [rid], rows: [row] },
+            ),
+            step(
+              `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in a different region. Mark it.`,
+              { regions: [rid], rows: [row], primaryCell: [row, c] },
+            ),
+          ],
         }
       }
     }
@@ -282,9 +355,25 @@ function findConfinementHint(
           cell: [r, col], action: 'place-mark',
           label: 'Region locks column',
           reason:
-            `Every cell where region ${rid + 1}'s star could still go is in column ${ord(col)}. ` +
-            `So column ${ord(col)}'s one star *must* come from region ${rid + 1} — ` +
-            `which means row ${ord(r)}, column ${ord(col)} (a different region) cannot have one. Mark it.`,
+            `Every cell where Region ${rid + 1}'s star could still go is in column ${ord(col)}.`,
+          steps: [
+            step(
+              `Look at Region ${rid + 1}.`,
+              { regions: [rid] },
+            ),
+            step(
+              `Every cell where its star could still go is in column ${ord(col)}.`,
+              { regions: [rid], cols: [col] },
+            ),
+            step(
+              `So column ${ord(col)}'s one star MUST come from Region ${rid + 1}.`,
+              { regions: [rid], cols: [col] },
+            ),
+            step(
+              `Cell (row ${ord(r)}, column ${ord(col)}) is in column ${ord(col)} but a different region. Mark it.`,
+              { regions: [rid], cols: [col], primaryCell: [r, col] },
+            ),
+          ],
         }
       }
     }
@@ -312,9 +401,25 @@ function findConfinementHint(
           cell: [rr, c], action: 'place-mark',
           label: 'Row claims region',
           reason:
-            `Every column where row ${ord(r)}'s star could still go is inside region ${rid + 1}. ` +
-            `So region ${rid + 1}'s one star *must* come from row ${ord(r)} — ` +
-            `which means row ${ord(rr)}, column ${ord(c)} (same region, different row) cannot have one. Mark it.`,
+            `Every column where row ${ord(r)}'s star could still go is inside Region ${rid + 1}.`,
+          steps: [
+            step(
+              `Look at Row ${ord(r)}.`,
+              { rows: [r] },
+            ),
+            step(
+              `Every column where its star could still go is inside Region ${rid + 1}.`,
+              { rows: [r], regions: [rid] },
+            ),
+            step(
+              `So Region ${rid + 1}'s star MUST come from row ${ord(r)}. Cells in this region on other rows are out.`,
+              { regions: [rid], rows: [r] },
+            ),
+            step(
+              `Cell (row ${ord(rr)}, column ${ord(c)}) is in Region ${rid + 1} but on a different row. Mark it.`,
+              { regions: [rid], rows: [r], primaryCell: [rr, c] },
+            ),
+          ],
         }
       }
     }
@@ -341,9 +446,25 @@ function findConfinementHint(
           cell: [r, cc], action: 'place-mark',
           label: 'Column claims region',
           reason:
-            `Every row where column ${ord(c)}'s star could still go is inside region ${rid + 1}. ` +
-            `So region ${rid + 1}'s one star *must* come from column ${ord(c)} — ` +
-            `which means row ${ord(r)}, column ${ord(cc)} (same region, different column) cannot have one. Mark it.`,
+            `Every row where column ${ord(c)}'s star could still go is inside Region ${rid + 1}.`,
+          steps: [
+            step(
+              `Look at Column ${ord(c)}.`,
+              { cols: [c] },
+            ),
+            step(
+              `Every row where its star could still go is inside Region ${rid + 1}.`,
+              { cols: [c], regions: [rid] },
+            ),
+            step(
+              `So Region ${rid + 1}'s star MUST come from column ${ord(c)}. Cells in this region in other columns are out.`,
+              { regions: [rid], cols: [c] },
+            ),
+            step(
+              `Cell (row ${ord(r)}, column ${ord(cc)}) is in Region ${rid + 1} but on a different column. Mark it.`,
+              { regions: [rid], cols: [c], primaryCell: [r, cc] },
+            ),
+          ],
         }
       }
     }
@@ -410,9 +531,25 @@ function findPairConfinementHint(
             cell: [row, c], action: 'place-mark',
             label: 'Region pair locks rows',
             reason:
-              `Regions ${a + 1} and ${b + 1} can both *only* place their stars on rows ${ord(r1)} or ${ord(r2)}. ` +
-              `That means those two rows are reserved for those two regions — no other region may use them. ` +
-              `Cell (row ${ord(row)}, column ${ord(c)}) is in region ${rid + 1}, so it can't have a star. Mark it.`,
+              `Regions ${a + 1} and ${b + 1} can both only place stars on rows ${ord(r1)} or ${ord(r2)}.`,
+            steps: [
+              step(
+                `Look at Regions ${a + 1} and ${b + 1}.`,
+                { regions: [a, b] },
+              ),
+              step(
+                `Both can ONLY place their stars on rows ${ord(r1)} or ${ord(r2)}.`,
+                { regions: [a, b], rows: [r1, r2] },
+              ),
+              step(
+                `So those two rows are reserved for those two regions — no other region may use them.`,
+                { rows: [r1, r2], regions: [a, b] },
+              ),
+              step(
+                `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in Region ${rid + 1}. Mark it.`,
+                { rows: [r1, r2], regions: [a, b], primaryCell: [row, c] },
+              ),
+            ],
           }
         }
       }
@@ -437,9 +574,25 @@ function findPairConfinementHint(
             cell: [r, col], action: 'place-mark',
             label: 'Region pair locks columns',
             reason:
-              `Regions ${a + 1} and ${b + 1} can both *only* place their stars in columns ${ord(c1)} or ${ord(c2)}. ` +
-              `That means those two columns are reserved for those two regions. Cell (row ${ord(r)}, column ${ord(col)}) ` +
-              `is in region ${rid + 1}, so it can't have a star. Mark it.`,
+              `Regions ${a + 1} and ${b + 1} can both only place stars in columns ${ord(c1)} or ${ord(c2)}.`,
+            steps: [
+              step(
+                `Look at Regions ${a + 1} and ${b + 1}.`,
+                { regions: [a, b] },
+              ),
+              step(
+                `Both can ONLY place their stars in columns ${ord(c1)} or ${ord(c2)}.`,
+                { regions: [a, b], cols: [c1, c2] },
+              ),
+              step(
+                `Those two columns are reserved for those two regions.`,
+                { cols: [c1, c2], regions: [a, b] },
+              ),
+              step(
+                `Cell (row ${ord(r)}, column ${ord(col)}) is in Region ${rid + 1} on column ${ord(col)}. Mark it.`,
+                { cols: [c1, c2], regions: [a, b], primaryCell: [r, col] },
+              ),
+            ],
           }
         }
       }
@@ -483,9 +636,25 @@ function findPairConfinementHint(
               cell: [r, c], action: 'place-mark',
               label: 'Row pair locks regions',
               reason:
-                `Rows ${ord(a)} and ${ord(b)} can both *only* place their stars in regions ${g1 + 1} or ${g2 + 1}. ` +
-                `Those two regions are reserved for those two rows. Cell (row ${ord(r)}, column ${ord(c)}) is in ` +
-                `region ${rid + 1} but on a different row, so it can't have a star. Mark it.`,
+                `Rows ${ord(a)} and ${ord(b)} can both only place stars in regions ${g1 + 1} or ${g2 + 1}.`,
+              steps: [
+                step(
+                  `Look at Rows ${ord(a)} and ${ord(b)}.`,
+                  { rows: [a, b] },
+                ),
+                step(
+                  `Both can ONLY place their stars in regions ${g1 + 1} or ${g2 + 1}.`,
+                  { rows: [a, b], regions: [g1, g2] },
+                ),
+                step(
+                  `Those two regions are reserved for those two rows.`,
+                  { regions: [g1, g2], rows: [a, b] },
+                ),
+                step(
+                  `Cell (row ${ord(r)}, column ${ord(c)}) is in Region ${rid + 1} but on a different row. Mark it.`,
+                  { regions: [g1, g2], rows: [a, b], primaryCell: [r, c] },
+                ),
+              ],
             }
           }
         }
@@ -512,9 +681,25 @@ function findPairConfinementHint(
               cell: [r, c], action: 'place-mark',
               label: 'Column pair locks regions',
               reason:
-                `Columns ${ord(a)} and ${ord(b)} can both *only* place their stars in regions ${g1 + 1} or ${g2 + 1}. ` +
-                `Those two regions are reserved for those two columns. Cell (row ${ord(r)}, column ${ord(c)}) is in ` +
-                `region ${rid + 1} but on a different column, so it can't have a star. Mark it.`,
+                `Columns ${ord(a)} and ${ord(b)} can both only place stars in regions ${g1 + 1} or ${g2 + 1}.`,
+              steps: [
+                step(
+                  `Look at Columns ${ord(a)} and ${ord(b)}.`,
+                  { cols: [a, b] },
+                ),
+                step(
+                  `Both can ONLY place their stars in regions ${g1 + 1} or ${g2 + 1}.`,
+                  { cols: [a, b], regions: [g1, g2] },
+                ),
+                step(
+                  `Those two regions are reserved for those two columns.`,
+                  { regions: [g1, g2], cols: [a, b] },
+                ),
+                step(
+                  `Cell (row ${ord(r)}, column ${ord(c)}) is in Region ${rid + 1} but on a different column. Mark it.`,
+                  { regions: [g1, g2], cols: [a, b], primaryCell: [r, c] },
+                ),
+              ],
             }
           }
         }
@@ -609,9 +794,22 @@ function findTripleConfinementHint(
           cell: [row, c], action: 'place-mark',
           label: 'Region triple locks rows',
           reason:
-            `Regions ${list(regions)} together can only place their stars on rows ${list(rows)}. ` +
-            `Those three rows are reserved for those three regions — no other region may use them. ` +
-            `Cell (row ${ord(row)}, column ${ord(c)}) is in region ${rid + 1}, so it can't have a star. Mark it.`,
+            `Regions ${list(regions)} together can only place stars on rows ${list(rows)}.`,
+          steps: [
+            step(`Look at Regions ${list(regions)}.`, { regions }),
+            step(
+              `Together, all their candidates fit in rows ${list(rows)}.`,
+              { regions, rows },
+            ),
+            step(
+              `Three regions, three rows — those rows are reserved for those regions.`,
+              { regions, rows },
+            ),
+            step(
+              `Cell (row ${ord(row)}, column ${ord(c)}) is on row ${ord(row)} but in Region ${rid + 1}. Mark it.`,
+              { regions, rows, primaryCell: [row, c] },
+            ),
+          ],
         }
       }
     }
@@ -631,9 +829,22 @@ function findTripleConfinementHint(
           cell: [r, col], action: 'place-mark',
           label: 'Region triple locks columns',
           reason:
-            `Regions ${list(regions)} together can only place their stars in columns ${list(cols)}. ` +
-            `Those three columns are reserved for those three regions. Cell (row ${ord(r)}, column ${ord(col)}) ` +
-            `is in region ${rid + 1}, so it can't have a star. Mark it.`,
+            `Regions ${list(regions)} together can only place stars in columns ${list(cols)}.`,
+          steps: [
+            step(`Look at Regions ${list(regions)}.`, { regions }),
+            step(
+              `Together, all their candidates fit in columns ${list(cols)}.`,
+              { regions, cols },
+            ),
+            step(
+              `Three regions, three columns — those columns are reserved for those regions.`,
+              { regions, cols },
+            ),
+            step(
+              `Cell (row ${ord(r)}, column ${ord(col)}) is in column ${ord(col)} but in Region ${rid + 1}. Mark it.`,
+              { regions, cols, primaryCell: [r, col] },
+            ),
+          ],
         }
       }
     }
@@ -654,9 +865,22 @@ function findTripleConfinementHint(
             cell: [r, cc], action: 'place-mark',
             label: 'Row triple locks regions',
             reason:
-              `Rows ${list(rows)} together can only place their stars in regions ${list(regions)}. ` +
-              `Those three regions are reserved for those three rows. Cell (row ${ord(r)}, column ${ord(cc)}) ` +
-              `is in region ${rid + 1} but on a different row, so it can't have a star. Mark it.`,
+              `Rows ${list(rows)} together can only place stars in regions ${list(regions)}.`,
+            steps: [
+              step(`Look at Rows ${list(rows)}.`, { rows }),
+              step(
+                `Together, all their candidates fit in regions ${list(regions)}.`,
+                { rows, regions },
+              ),
+              step(
+                `Three rows, three regions — those regions are reserved for those rows.`,
+                { rows, regions },
+              ),
+              step(
+                `Cell (row ${ord(r)}, column ${ord(cc)}) is in Region ${rid + 1} but on a different row. Mark it.`,
+                { rows, regions, primaryCell: [r, cc] },
+              ),
+            ],
           }
         }
       }
@@ -678,9 +902,22 @@ function findTripleConfinementHint(
             cell: [r, cc], action: 'place-mark',
             label: 'Column triple locks regions',
             reason:
-              `Columns ${list(cols)} together can only place their stars in regions ${list(regions)}. ` +
-              `Those three regions are reserved for those three columns. Cell (row ${ord(r)}, column ${ord(cc)}) ` +
-              `is in region ${rid + 1} but on a different column, so it can't have a star. Mark it.`,
+              `Columns ${list(cols)} together can only place stars in regions ${list(regions)}.`,
+            steps: [
+              step(`Look at Columns ${list(cols)}.`, { cols }),
+              step(
+                `Together, all their candidates fit in regions ${list(regions)}.`,
+                { cols, regions },
+              ),
+              step(
+                `Three columns, three regions — those regions are reserved for those columns.`,
+                { cols, regions },
+              ),
+              step(
+                `Cell (row ${ord(r)}, column ${ord(cc)}) is in Region ${rid + 1} but on a different column. Mark it.`,
+                { cols, regions, primaryCell: [r, cc] },
+              ),
+            ],
           }
         }
       }
@@ -709,6 +946,7 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
       cell: null, action: 'none',
       label: 'Already solved',
       reason: 'Every row, column, and region already has its star. Nice work!',
+      steps: [step('Every row, column, and region already has its star. Nice work!')],
     }
   }
 
@@ -722,8 +960,13 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         cell: null, action: 'none',
         label: 'Stuck',
         reason:
-          `Region ${rid + 1} has no cells where a star can still go — your marks have ruled them all out. ` +
-          `Undo a recent mark or reset and try again.`,
+          `Region ${rid + 1} has no cells where a star can still go — your marks have ruled them all out.`,
+        steps: [
+          step(
+            `Region ${rid + 1} has no cells where a star can still go — your marks have over-constrained it. Undo a recent mark or reset.`,
+            { regions: [rid] },
+          ),
+        ],
       }
     }
     if (cells.length === 1) {
@@ -733,9 +976,21 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         cell: [r, c], action: 'place-star',
         label: 'Forced region',
         reason:
-          `Region ${rid + 1} has exactly one cell where a star can still go: ` +
-          `row ${ord(r)}, column ${ord(c)}. Every other cell in that region is either marked, ` +
-          `in the same row/column as a placed star, or adjacent to one — so this cell is forced.`,
+          `Region ${rid + 1} has exactly one cell where a star can still go: row ${ord(r)}, column ${ord(c)}.`,
+        steps: [
+          step(
+            `Look at Region ${rid + 1}. Each region holds exactly one star.`,
+            { regions: [rid] },
+          ),
+          step(
+            `Every cell in this region except one is blocked — by a mark, a star sharing its row or column, or an adjacent star.`,
+            { regions: [rid] },
+          ),
+          step(
+            `Only row ${ord(r)}, column ${ord(c)} remains. Place the star here.`,
+            { regions: [rid], primaryCell: [r, c] },
+          ),
+        ],
       }
     }
   }
@@ -749,9 +1004,13 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'contradiction',
         cell: null, action: 'none',
         label: 'Stuck',
-        reason:
-          `Row ${ord(r)} has no cells where a star can still go. ` +
-          `Undo a recent mark or reset and try again.`,
+        reason: `Row ${ord(r)} has no cells where a star can still go.`,
+        steps: [
+          step(
+            `Row ${ord(r)} has no cells where a star can still go. Undo a recent mark or reset.`,
+            { rows: [r] },
+          ),
+        ],
       }
     }
     if (cells.length === 1) {
@@ -760,9 +1019,21 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'forced-row',
         cell: [r, c], action: 'place-star',
         label: 'Forced row',
-        reason:
-          `Row ${ord(r)} only has one valid column left for its star — column ${ord(c)}. ` +
-          `Other columns in this row are either marked or blocked by a star above/below.`,
+        reason: `Row ${ord(r)} only has one valid column left — column ${ord(c)}.`,
+        steps: [
+          step(
+            `Look at Row ${ord(r)}. Each row holds exactly one star.`,
+            { rows: [r] },
+          ),
+          step(
+            `All columns in this row are blocked except one — by marks, stars in the same column, or adjacency.`,
+            { rows: [r] },
+          ),
+          step(
+            `Only column ${ord(c)} remains. Place the star here.`,
+            { rows: [r], primaryCell: [r, c] },
+          ),
+        ],
       }
     }
   }
@@ -776,8 +1047,13 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'contradiction',
         cell: null, action: 'none',
         label: 'Stuck',
-        reason:
-          `Column ${ord(c)} has no valid cells left. Undo a recent mark or reset.`,
+        reason: `Column ${ord(c)} has no valid cells left.`,
+        steps: [
+          step(
+            `Column ${ord(c)} has no valid cells left. Undo a recent mark or reset.`,
+            { cols: [c] },
+          ),
+        ],
       }
     }
     if (cells.length === 1) {
@@ -786,9 +1062,21 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'forced-col',
         cell: [r, c], action: 'place-star',
         label: 'Forced column',
-        reason:
-          `Column ${ord(c)} only has one valid row left for its star — row ${ord(r)}. ` +
-          `Other rows in this column are either marked or already 'taken' by a region/star.`,
+        reason: `Column ${ord(c)} only has one valid row left — row ${ord(r)}.`,
+        steps: [
+          step(
+            `Look at Column ${ord(c)}. Each column holds exactly one star.`,
+            { cols: [c] },
+          ),
+          step(
+            `All rows in this column are blocked except one — by marks, stars in the same row, or adjacency.`,
+            { cols: [c] },
+          ),
+          step(
+            `Only row ${ord(r)} remains. Place the star here.`,
+            { cols: [c], primaryCell: [r, c] },
+          ),
+        ],
       }
     }
   }
@@ -820,9 +1108,20 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         cell: [r, c], action: 'place-star',
         label: 'Solver hint',
         reason:
-          `No single forced move follows from the current board — you'll need a 2-step look-ahead ` +
-          `(e.g. "if I place here, this region runs out of options"). For now, the next solution star ` +
-          `is at row ${ord(r)}, column ${ord(c)}. Try marking impossible cells around it to see why.`,
+          `No single forced move follows from the current board — you'll need a 2-step look-ahead. ` +
+          `The next solution star is at row ${ord(r)}, column ${ord(c)}.`,
+        steps: [
+          step(
+            `No single forced deduction is available from the current board.`,
+          ),
+          step(
+            `You'd need a 2-step look-ahead (e.g. "if I place here, that region runs out of options").`,
+          ),
+          step(
+            `The next star in the unique solution is at row ${ord(r)}, column ${ord(c)}. Place it, then mark cells around it to find the next move.`,
+            { primaryCell: [r, c] },
+          ),
+        ],
       }
     }
   }
@@ -832,5 +1131,6 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
     cell: null, action: 'none',
     label: 'No deduction',
     reason: 'No further deduction available from this state.',
+    steps: [step('No further deduction available from this state.')],
   }
 }

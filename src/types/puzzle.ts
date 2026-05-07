@@ -27,3 +27,23 @@ export interface BorderEdges {
   bottom: boolean
   left: boolean
 }
+
+/**
+ * Visual entities a hint step can highlight on the board.
+ * The Board component translates these into per-cell flags.
+ */
+export interface HintHighlight {
+  rows?: number[]
+  cols?: number[]
+  regions?: number[]
+  /** Additional supporting cells (e.g. the source star for an adjacency hint). */
+  cells?: [number, number][]
+  /** The action target — pulses gold (star) or blue (mark) on the last step. */
+  primaryCell?: [number, number]
+}
+
+export interface HintStep {
+  /** Plain-English sentence shown to the player at this step. */
+  text: string
+  highlight: HintHighlight
+}

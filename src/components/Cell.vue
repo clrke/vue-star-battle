@@ -24,6 +24,11 @@ const props = defineProps<{
   isViolated: boolean
   isHint: boolean
   hintAction: 'place-star' | 'place-mark' | null
+  /** Hint-step highlight flags (subtle blue tint, additive at intersections). */
+  inHintRow?: boolean
+  inHintCol?: boolean
+  inHintRegion?: boolean
+  isHintExtra?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -117,6 +122,16 @@ function handleContextMenu(e: MouseEvent) {
   emit('toggleMark')
 }
 
+import { computed } from 'vue'
+
+// ── Hint highlight overlay strength (0–4, additive) ─────────────────────────
+const highlightStrength = computed(() => (
+  (props.inHintRow ? 1 : 0) +
+  (props.inHintCol ? 1 : 0) +
+  (props.inHintRegion ? 1 : 0) +
+  (props.isHintExtra ? 1 : 0)
+))
+
 // ── Star-burst animation ───────────────────────────────────────────────────
 // One-shot ring + 8 outward-flying particles when a star is placed correctly.
 // Suppressed on violations so the burst always reads as "good move".
@@ -164,6 +179,13 @@ onUnmounted(() => {
     @touchend="handleTouchEnd"
     @touchcancel="handleTouchCancel"
   >
+    <div
+      v-if="inHintRow || inHintCol || inHintRegion || isHintExtra"
+      class="cell__highlight"
+      :style="{ '--hl-strength': highlightStrength } as any"
+      aria-hidden="true"
+    />
+
     <span v-if="state === 'star'"   class="cell__symbol cell__symbol--star">★</span>
     <span v-else-if="state === 'marked'"      class="cell__symbol cell__symbol--mark">·</span>
     <span v-else-if="state === 'auto-marked'" class="cell__symbol cell__symbol--auto">·</span>
@@ -245,6 +267,17 @@ onUnmounted(() => {
 }
 .cell--hint-mark {
   animation: hint-pulse-mark 0.6s ease-in-out infinite;
+}
+
+/* Hint-step highlight: subtle blue tint, additive at intersections.
+ * --hl-strength is the count of (row, col, region, extra) flags that are true. */
+.cell__highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: rgba(41, 128, 185, calc(0.10 + 0.10 * var(--hl-strength)));
+  transition: background 200ms ease;
 }
 
 /* Star-burst: a one-shot expanding ring + 8 outward-flying particles. */

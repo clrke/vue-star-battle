@@ -4,7 +4,10 @@ import { storeToRefs } from 'pinia'
 import { useGameStore } from '../stores/game'
 
 const game = useGameStore()
-const { lastHint } = storeToRefs(game)
+const {
+  lastHint, currentHintStep, totalHintSteps, hintStepIndex,
+  isFirstHintStep, isLastHintStep,
+} = storeToRefs(game)
 
 const visible = computed(() => lastHint.value !== null)
 
@@ -46,25 +49,57 @@ const applyLabel = computed(() => {
   return lastHint.value.action === 'place-star' ? 'Place ★' : 'Place dot'
 })
 
-function dismiss() {
-  game.clearHint()
-}
+const isMultiStep = computed(() => totalHintSteps.value > 1)
 
-function apply() {
-  game.applyHint()
-}
+function dismiss() { game.clearHint() }
+function next()    { game.nextHintStep() }
+function prev()    { game.prevHintStep() }
+function apply()   { game.applyHint() }
 </script>
 
 <template>
   <Transition name="slide-down">
-    <div v-if="visible && lastHint" class="hint-box" :class="variantClass">
+    <div v-if="visible && lastHint && currentHintStep" class="hint-box" :class="variantClass">
       <div class="hint-header">
-        <span class="hint-label">{{ lastHint.label }}</span>
+        <span class="hint-label">
+          {{ lastHint.label }}
+          <span v-if="isMultiStep" class="hint-step-counter">
+            · Step {{ hintStepIndex + 1 }} / {{ totalHintSteps }}
+          </span>
+        </span>
         <button class="hint-close" @click="dismiss" aria-label="Dismiss hint">×</button>
       </div>
-      <p class="hint-reason">{{ lastHint.reason }}</p>
-      <div v-if="canApply" class="hint-actions">
-        <button class="hint-apply" @click="apply">{{ applyLabel }}</button>
+
+      <p class="hint-reason">{{ currentHintStep.text }}</p>
+
+      <div v-if="isMultiStep" class="hint-progress">
+        <span
+          v-for="i in totalHintSteps"
+          :key="i"
+          class="hint-progress-dot"
+          :class="{ 'hint-progress-dot--done': i - 1 <= hintStepIndex }"
+        />
+      </div>
+
+      <div class="hint-actions">
+        <button
+          v-if="isMultiStep"
+          class="hint-btn"
+          :disabled="isFirstHintStep"
+          @click="prev"
+        >← Prev</button>
+
+        <button
+          v-if="isMultiStep && !isLastHintStep"
+          class="hint-btn hint-btn--primary"
+          @click="next"
+        >Next →</button>
+
+        <button
+          v-if="canApply && (isLastHintStep || !isMultiStep)"
+          class="hint-btn hint-btn--primary"
+          @click="apply"
+        >{{ applyLabel }}</button>
       </div>
     </div>
   </Transition>
@@ -94,6 +129,7 @@ function apply() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 4px;
+  gap: 8px;
 }
 
 .hint-label {
@@ -102,6 +138,11 @@ function apply() {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #1a1a2e;
+}
+.hint-step-counter {
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.04em;
 }
 .hint--mark     .hint-label { color: #2980b9; }
 .hint--fallback .hint-label { color: #e67e22; }
@@ -122,32 +163,56 @@ function apply() {
 .hint-reason {
   margin: 0;
   color: #333;
+  min-height: 2.6em;
 }
+
+.hint-progress {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.hint-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  transition: background 200ms ease;
+}
+.hint-progress-dot--done { background: currentColor; }
+.hint--logic .hint-progress-dot--done    { background: #1a1a2e; }
+.hint--mark .hint-progress-dot--done     { background: #2980b9; }
+.hint--fallback .hint-progress-dot--done { background: #e67e22; }
 
 .hint-actions {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
-.hint-apply {
-  padding: 4px 14px;
+.hint-btn {
+  padding: 5px 14px;
   border-radius: 6px;
-  border: 1.5px solid currentColor;
-  background: transparent;
-  color: inherit;
+  border: 1.5px solid #ccc;
+  background: #fff;
+  color: #555;
   cursor: pointer;
   font-size: 0.78rem;
   font-weight: 700;
   transition: all 120ms ease;
 }
+.hint-btn:hover:not(:disabled) { border-color: #888; color: #222; }
+.hint-btn:disabled { opacity: 0.35; cursor: default; }
 
-.hint-box .hint-apply { color: #1a1a2e; }
-.hint--mark .hint-apply { color: #2980b9; }
-.hint--logic .hint-apply { color: #1a1a2e; }
-.hint--fallback .hint-apply { color: #e67e22; }
-
-.hint-apply:hover { background: rgba(0, 0, 0, 0.04); }
+.hint-btn--primary {
+  background: currentColor;
+  border-color: currentColor;
+  color: #fff;
+}
+.hint--logic .hint-btn--primary { background: #1a1a2e; border-color: #1a1a2e; color: #fff; }
+.hint--mark  .hint-btn--primary { background: #2980b9; border-color: #2980b9; color: #fff; }
+.hint--fallback .hint-btn--primary { background: #e67e22; border-color: #e67e22; color: #fff; }
+.hint-btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
 
 /* Transition */
 .slide-down-enter-active, .slide-down-leave-active {
