@@ -1,12 +1,58 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from '../stores/game'
+import { useProgressionStore } from '../stores/progression'
 import Cell from './Cell.vue'
 import type { BorderEdges } from '../types/puzzle'
 
-const game = useGameStore()
-const { currentPuzzle, displayCellStates, violations, isSolved, hintCell, lastHint, starCount } = storeToRefs(game)
+const game        = useGameStore()
+const progression = useProgressionStore()
+const {
+  currentPuzzle, displayCellStates, violations, isSolved,
+  hintCell, lastHint, starCount, lastSolve,
+} = storeToRefs(game)
+
+// ── Live session timer ─────────────────────────────────────────────────────
+const elapsedMs = ref(progression.getElapsedMs())
+let timerId: ReturnType<typeof setInterval> | null = null
+
+function startTimer() {
+  if (timerId) return
+  elapsedMs.value = progression.getElapsedMs()
+  timerId = setInterval(() => { elapsedMs.value = progression.getElapsedMs() }, 500)
+}
+function stopTimer() {
+  if (timerId) { clearInterval(timerId); timerId = null }
+}
+
+watch(isSolved, (solved) => {
+  if (solved) {
+    // Freeze on the final time captured at solve
+    if (lastSolve.value?.elapsedMs != null) elapsedMs.value = lastSolve.value.elapsedMs
+    stopTimer()
+  } else {
+    startTimer()
+  }
+})
+
+watch(currentPuzzle, () => {
+  // New puzzle → reset display and resume ticking
+  elapsedMs.value = progression.getElapsedMs()
+  startTimer()
+})
+
+onMounted(() => { if (!isSolved.value) startTimer() })
+onUnmounted(stopTimer)
+
+function formatTime(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  const pad = (x: number) => String(x).padStart(2, '0')
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+}
 
 const n = computed(() => currentPuzzle.value.n)
 
@@ -38,6 +84,7 @@ const hintAction = computed(() =>
   <div class="board-wrap">
     <!-- Progress bar -->
     <div class="progress" :class="{ 'progress--done': isSolved }">
+      <span class="progress-time">⏱ {{ formatTime(elapsedMs) }}</span>
       <div class="progress-track">
         <div
           class="progress-fill"
@@ -123,7 +170,17 @@ const hintAction = computed(() =>
   transition: color 400ms ease;
 }
 
-.progress--done .progress-label {
+.progress-time {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+  min-width: 5ch;
+  transition: color 400ms ease;
+}
+
+.progress--done .progress-label,
+.progress--done .progress-time {
   color: #27ae60;
 }
 

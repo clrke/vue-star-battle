@@ -11,6 +11,7 @@ export interface SolveResult {
   gained: number
   level: number
   leveledUp: boolean
+  elapsedMs: number
 }
 
 export const useGameStore = defineStore('game', () => {

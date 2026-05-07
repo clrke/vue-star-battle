@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import type { DisplayCellState, BorderEdges } from '../types/puzzle'
 
 const REGION_COLORS = [
@@ -17,7 +17,7 @@ const REGION_COLORS = [
   '#f5e8c0', // 11 sand
 ]
 
-defineProps<{
+const props = defineProps<{
   regionId: number
   state: DisplayCellState
   borders: BorderEdges
@@ -117,7 +117,28 @@ function handleContextMenu(e: MouseEvent) {
   emit('toggleMark')
 }
 
-onUnmounted(clearPendingTap)
+// ── Star-burst animation ───────────────────────────────────────────────────
+// One-shot ring + 8 outward-flying particles when a star is placed correctly.
+// Suppressed on violations so the burst always reads as "good move".
+
+const burstActive = ref(false)
+let burstTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => props.state,
+  (next, prev) => {
+    if (next === 'star' && prev !== 'star' && !props.isViolated) {
+      if (burstTimer) clearTimeout(burstTimer)
+      burstActive.value = true
+      burstTimer = setTimeout(() => { burstActive.value = false; burstTimer = null }, 700)
+    }
+  },
+)
+
+onUnmounted(() => {
+  clearPendingTap()
+  if (burstTimer) clearTimeout(burstTimer)
+})
 </script>
 
 <template>
@@ -146,6 +167,15 @@ onUnmounted(clearPendingTap)
     <span v-if="state === 'star'"   class="cell__symbol cell__symbol--star">★</span>
     <span v-else-if="state === 'marked'"      class="cell__symbol cell__symbol--mark">·</span>
     <span v-else-if="state === 'auto-marked'" class="cell__symbol cell__symbol--auto">·</span>
+
+    <div v-if="burstActive" class="cell__burst" aria-hidden="true">
+      <span class="cell__burst-ring" />
+      <span
+        v-for="i in 8" :key="i"
+        class="cell__burst-particle"
+        :style="{ '--angle': `${(i - 1) * 45}deg` }"
+      />
+    </div>
   </div>
 </template>
 
@@ -215,5 +245,52 @@ onUnmounted(clearPendingTap)
 }
 .cell--hint-mark {
   animation: hint-pulse-mark 0.6s ease-in-out infinite;
+}
+
+/* Star-burst: a one-shot expanding ring + 8 outward-flying particles. */
+.cell__burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cell__burst-ring {
+  position: absolute;
+  inset: 10%;
+  border-radius: 50%;
+  border: 3px solid #f1c40f;
+  animation: burst-ring 700ms ease-out forwards;
+  will-change: transform, opacity;
+}
+
+.cell__burst-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #f39c12;
+  box-shadow: 0 0 4px rgba(243, 156, 18, 0.6);
+  animation: burst-particle 700ms cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes burst-ring {
+  0%   { transform: scale(0.4); opacity: 0.95; }
+  100% { transform: scale(2.0); opacity: 0;    }
+}
+
+@keyframes burst-particle {
+  0%   { transform: rotate(var(--angle)) translateY(0) scale(1);   opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: rotate(var(--angle)) translateY(-32px) scale(0.2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell__burst-ring,
+  .cell__burst-particle { animation: none; opacity: 0; }
 }
 </style>

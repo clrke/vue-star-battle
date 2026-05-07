@@ -51,6 +51,11 @@ export const useProgressionStore = defineStore('progression', () => {
   const perSize      = ref<Record<number, PerSizeStats>>(initial.perSize)
   const current      = ref<SavedPuzzle | null>(initial.current)
 
+  // Treat the gap between save and reload as a pause: the saved
+  // accumulatedMs already covers all real play time, so we reset
+  // startedAt to "now" rather than counting the page-closed window.
+  if (current.value) current.value.startedAt = Date.now()
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const level             = computed(() => levelForXp(xp.value))
@@ -131,8 +136,8 @@ export const useProgressionStore = defineStore('progression', () => {
   /**
    * Record a successful solve. Returns the XP awarded so the UI can announce it.
    */
-  function awardSolve(): { gained: number; level: number; leveledUp: boolean } {
-    if (!current.value) return { gained: 0, level: level.value, leveledUp: false }
+  function awardSolve(): { gained: number; level: number; leveledUp: boolean; elapsedMs: number } {
+    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, elapsedMs: 0 }
 
     const n          = current.value.puzzle.n
     const elapsedMs  = getElapsedMs()
@@ -157,6 +162,7 @@ export const useProgressionStore = defineStore('progression', () => {
       gained,
       level: level.value,
       leveledUp: level.value > prevLevel,
+      elapsedMs,
     }
   }
 
