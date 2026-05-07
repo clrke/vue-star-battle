@@ -56,7 +56,6 @@ export type HintCategory =
   | 'common-neighbor-region' // region has 2 candidates; this cell is 8-adjacent to both
   | 'common-neighbor-row'    // row has 2 candidates; this cell is 8-adjacent to both
   | 'common-neighbor-col'    // col has 2 candidates; this cell is 8-adjacent to both
-  | 'selfish-roommate'       // a candidate in a region is 8-adjacent to every other candidate
   | 'squeeze-rows'           // two consecutive rows' eligible cols form exactly 2 non-adjacent cols → claim
   | 'squeeze-cols'           // two consecutive cols' eligible rows form exactly 2 non-adjacent rows → claim
   | 'fish-cols'              // 3 columns confined to the same 3 rows → eliminate other cols in those rows
@@ -1084,67 +1083,6 @@ function findTripleConfinementHint(
   return null
 }
 
-// ── Selfish Roommate elimination ─────────────────────────────────────────────
-
-/**
- * Within a region's candidate set, if one candidate C is 8-adjacent to EVERY
- * other candidate in that region, then placing a star at C would block all
- * remaining candidates via adjacency — leaving the region with no valid cell.
- * ∴ C cannot be the star; eliminate it.
- */
-function findSelfishRoommateHint(
-  puzzle: Puzzle,
-  state: DisplayCellState[][],
-  mask: boolean[][],
-  placed: ReturnType<typeof placedSets>,
-): Hint | null {
-  const { n } = puzzle
-
-  function is8Adj(r1: number, c1: number, r2: number, c2: number) {
-    return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1
-  }
-
-  for (let rid = 0; rid < n; rid++) {
-    if (placed.regions.has(rid)) continue
-    const cands = eligibleInRegion(puzzle, mask, rid)
-    if (cands.length < 2) continue   // forced-region handles 0 or 1
-
-    for (const [cr, cc] of cands) {
-      // Check if this candidate is 8-adjacent to ALL other candidates
-      const others = cands.filter(([r, c]) => !(r === cr && c === cc))
-      const adjToAll = others.every(([r, c]) => is8Adj(cr, cc, r, c))
-      if (!adjToAll) continue
-      // Only suggest a mark if the cell is 'empty' (not already marked)
-      if (state[cr][cc] !== 'empty') continue
-
-      return {
-        category: 'selfish-roommate',
-        cell: [cr, cc],
-        action: 'place-mark',
-        label: 'Selfish roommate',
-        reason:
-          `Cell (row ${ord(cr)}, column ${ord(cc)}) is 8-adjacent to every other candidate in Region ${rid + 1}. ` +
-          `Placing a star here would block all other options for the region.`,
-        steps: [
-          step(
-            `Look at Region ${rid + 1}. It still needs a star somewhere among these ${cands.length} candidates.`,
-            { regions: [rid], cells: cands },
-          ),
-          step(
-            `Cell (row ${ord(cr)}, column ${ord(cc)}) is adjacent (including diagonally) to every other candidate in this region.`,
-            { regions: [rid], cells: others },
-          ),
-          step(
-            `If you placed a star here, all other candidates would be blocked, leaving the region with nowhere to go. Mark this cell.`,
-            { regions: [rid], primaryCell: [cr, cc] },
-          ),
-        ],
-      }
-    }
-  }
-  return null
-}
-
 // ── Squeeze (row-pair / col-pair confinement) ─────────────────────────────────
 
 /**
@@ -1727,10 +1665,6 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   // ── 4. Suggest a mark from a placed star's eliminations ──
   const markHint = findMarkHint(puzzle, state, placed.stars)
   if (markHint) return markHint
-
-  // ── 4b. Selfish roommate (single-region elimination) ──
-  const selfishRoommate = findSelfishRoommateHint(puzzle, state, mask, placed)
-  if (selfishRoommate) return selfishRoommate
 
   // ── 5. Pointing / claiming (advanced confinement reasoning) ──
   const advanced = findConfinementHint(puzzle, state, mask, placed)

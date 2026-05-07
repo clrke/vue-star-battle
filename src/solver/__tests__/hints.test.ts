@@ -72,7 +72,7 @@ const VALID_CATEGORIES = new Set<HintCategory>([
   'pair-rows', 'pair-cols', 'pair-regions-rows', 'pair-regions-cols',
   'triple-rows', 'triple-cols', 'triple-regions-rows', 'triple-regions-cols',
   'common-neighbor-region', 'common-neighbor-row', 'common-neighbor-col',
-  'selfish-roommate', 'squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows',
+  'squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows',
   'wrong-mark', 'wrong-star',
   'fallback', 'contradiction', 'already-solved',
 ])
@@ -373,93 +373,6 @@ describe('deriveHint — structural invariants', () => {
   describe('(h) new techniques fire on constructed boards', () => {
 
     /**
-     * Selfish Roommate: craft a state on the 5×5 puzzle where region 1 (grid
-     * value 1) has exactly 3 candidates forming a tight 2×2 cluster. The top-
-     * left corner of that cluster is 8-adjacent to the other two, so the engine
-     * should call it a selfish roommate and eliminate it.
-     *
-     * Region 1 (value=1) cells in puzzle5x5: (0,0),(0,1),(0,2),(1,0),(1,1),(2,1)
-     * We mark every region-1 cell EXCEPT (0,0),(0,1),(1,0) — a tight L-shape
-     * where (0,0) is 8-adjacent to both (0,1) and (1,0), making it the
-     * "selfish roommate". We also mark other rows/cols to avoid earlier rules
-     * firing first (forced-region, forced-row, forced-col, mark-* all clear).
-     */
-    it('selfish-roommate fires when one candidate is 8-adj to all others', () => {
-      const puzzle = puzzles[0] // 5×5
-      const state = emptyState(puzzle.n)
-
-      // Mark all region-1 cells except (0,0), (0,1), (1,0)
-      const keep = new Set(['0,0', '0,1', '1,0'])
-      for (let r = 0; r < puzzle.n; r++)
-        for (let c = 0; c < puzzle.n; c++)
-          if (puzzle.grid[r][c] === 1 && !keep.has(`${r},${c}`))
-            state[r][c] = 'marked'
-
-      // Ensure no other region/row/col is down to 1 candidate (would trigger
-      // forced-* first). Also ensure no star is placed (mark-* won't fire).
-      // Check what the engine returns — we're specifically looking for selfish-roommate.
-      // If an earlier rule fires first due to the board state, that's OK — we
-      // just need to confirm the rule fires at some reachable board state.
-
-      // To force selfish-roommate to fire: also mark region-0 down to 2 cells
-      // (not 1) so forced-region doesn't trigger for region 0.
-      // Region 0 cells: (0,3),(0,4),(1,2),(1,3) — leave (0,3) and (1,3) open
-      state[0][4] = 'marked'
-      state[1][2] = 'marked'
-
-      // Now call the hint engine
-      const hint = deriveHint(puzzle, state)
-      assertHintInvariants(hint, puzzle, state, 'selfish-roommate-constructed')
-
-      // The hint MUST be a selfish-roommate OR an earlier legitimate rule.
-      // We assert that IF it fires selfish-roommate, the target is correct.
-      if (hint.category === 'selfish-roommate') {
-        expect(hint.action).toBe('place-mark')
-        expect(hint.cell).not.toBeNull()
-        const [r, c] = hint.cell!
-        expect(state[r][c]).toBe('empty')
-      }
-    })
-
-    it('selfish-roommate: direct unit — function fires on a 3-candidate cluster', () => {
-      // Construct a board where ONLY the selfish-roommate pattern remains for
-      // region 1: candidates (0,0), (0,1), (1,0). All other regions still have
-      // ≥2 candidates (no forced-region). No stars (no mark-adjacent/etc).
-      // Region 1 candidates reduced to (0,0),(0,1),(1,0).
-      // (0,0) is 8-adj to (0,1) and (1,0) → selfish roommate.
-      const puzzle = puzzles[0]
-      const state = emptyState(puzzle.n)
-
-      // Mark all region-1 cells except (0,0),(0,1),(1,0)
-      for (let r = 0; r < puzzle.n; r++)
-        for (let c = 0; c < puzzle.n; c++)
-          if (puzzle.grid[r][c] === 1 && !(r === 0 && c === 0) && !(r === 0 && c === 1) && !(r === 1 && c === 0))
-            state[r][c] = 'marked'
-
-      // For region 0: cells (0,3),(0,4),(1,2),(1,3) — keep all 4 open so forced-region won't fire
-      // For other regions: they have enough cells naturally at this point
-      // We need to ensure no row/col goes to 1 candidate either.
-      // Row 0: after marking, (0,2) is region-1 (marked), (0,3),(0,4) region-0 (open), (0,0),(0,1) open → row 0 has ≥2
-      // Row 1: (1,0) open, (1,4) region-2 open → row 1 has ≥2
-
-      // Run engine — expect selfish-roommate or an earlier rule
-      const hint = deriveHint(puzzle, state)
-      assertHintInvariants(hint, puzzle, state, 'selfish-roommate-unit')
-
-      // If the new rule fired, verify the target is a valid elimination
-      if (hint.category === 'selfish-roommate') {
-        expect(hint.action).toBe('place-mark')
-        const [r, c] = hint.cell!
-        // Target must be empty and in bounds
-        expect(state[r][c]).toBe('empty')
-        expect(r).toBeGreaterThanOrEqual(0)
-        expect(c).toBeGreaterThanOrEqual(0)
-        expect(r).toBeLessThan(puzzle.n)
-        expect(c).toBeLessThan(puzzle.n)
-      }
-    })
-
-    /**
      * Squeeze-rows: craft a state where rows 0 and 1 have eligible cells
      * confined to exactly 2 non-adjacent columns, and those columns still have
      * eligible cells in other rows.
@@ -549,7 +462,7 @@ describe('deriveHint — structural invariants', () => {
      * the returned cell always points to an empty/marked cell (not star/auto-marked).
      */
     it('new-category apply-target invariant: target never points to star/auto-marked', () => {
-      const newCategories = new Set(['selfish-roommate', 'squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows'])
+      const newCategories = new Set(['squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows'])
       for (const puzzle of puzzles) {
         const solution = getSolution(puzzle)!
         const rand = mulberry32(puzzle.n * 99991 + 7)

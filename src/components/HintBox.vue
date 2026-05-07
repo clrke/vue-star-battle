@@ -36,7 +36,6 @@ const variantClass = computed(() => {
     case 'common-neighbor-region':
     case 'common-neighbor-row':
     case 'common-neighbor-col':
-    case 'selfish-roommate':
     case 'squeeze-rows':
     case 'squeeze-cols':
     case 'fish-cols':
