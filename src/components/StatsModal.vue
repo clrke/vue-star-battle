@@ -8,7 +8,7 @@ const emit = defineEmits<{ close: [] }>()
 const progression = useProgressionStore()
 const { level, maxN, perSize, totalSolved, totalHints, totalTimeMs } = storeToRefs(progression)
 
-const ALL_SIZES = [5, 6, 7, 8, 10, 12] as const
+const ALL_SIZES = [4, 5, 6, 7, 8, 10, 12] as const
 
 function formatTime(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000))
@@ -98,13 +98,18 @@ function onBackdropClick(e: MouseEvent) {
               <tr
                 v-for="row in rows"
                 :key="row.n"
-                :class="{ 'row--dim': row.noData }"
+                :class="{ 'row--dim': row.noData && !row.locked, 'row--locked': row.locked }"
               >
                 <td class="size-col">{{ row.n }}×{{ row.n }}</td>
-                <td>{{ row.solved }}</td>
-                <td>{{ row.best }}</td>
-                <td>{{ row.avg }}</td>
-                <td>{{ row.hintsAvg }}</td>
+                <template v-if="row.locked">
+                  <td colspan="4" class="locked-msg">🔒 Not yet unlocked</td>
+                </template>
+                <template v-else>
+                  <td>{{ row.solved }}</td>
+                  <td>{{ row.best }}</td>
+                  <td>{{ row.avg }}</td>
+                  <td>{{ row.hintsAvg }}</td>
+                </template>
               </tr>
             </tbody>
           </table>
@@ -238,6 +243,16 @@ function onBackdropClick(e: MouseEvent) {
 
 .row--dim .size-col {
   color: var(--text-muted);
+}
+
+.row--locked td {
+  color: var(--text-muted);
+  opacity: 0.45;
+}
+
+.locked-msg {
+  font-size: 0.75rem;
+  font-style: italic;
 }
 
 /* Transition */

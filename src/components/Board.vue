@@ -43,26 +43,11 @@ function stopTimer() {
   if (timerId) { clearInterval(timerId); timerId = null }
 }
 
-watch(isSolved, (solved) => {
-  if (solved) {
-    // Freeze on the final time captured at solve
-    if (lastSolve.value?.elapsedMs != null) elapsedMs.value = lastSolve.value.elapsedMs
-    stopTimer()
-    showConfetti.value = true
-    playSolve()
-  } else {
-    showConfetti.value = false
-    startTimer()
-  }
+onMounted(() => {
+  if (!isSolved.value) startTimer()
+  // Auto-focus so keyboard navigation works immediately on load
+  boardEl.value?.focus({ preventScroll: true })
 })
-
-watch(currentPuzzle, () => {
-  // New puzzle → reset display and resume ticking
-  elapsedMs.value = progression.getElapsedMs()
-  startTimer()
-})
-
-onMounted(() => { if (!isSolved.value) startTimer() })
 onUnmounted(stopTimer)
 
 function formatTime(ms: number): string {
@@ -102,6 +87,7 @@ const hintAction = computed(() =>
 // ── Confetti ──────────────────────────────────────────────────────────────
 const showConfetti = ref(false)
 
+// ── Hover crosshair (mouse only) ──────────────────────────────────────────
 // Track which cell the mouse is currently over so we can tint the rest of
 // its row and column. Cleared on pointerleave from the board. Cells filter
 // to pointerType === 'mouse', and the visual is also gated behind
@@ -112,16 +98,82 @@ const inHoverCol = (c: number) => hoverCell.value?.c === c
 function onCellHover(r: number, c: number) { hoverCell.value = { r, c } }
 function onBoardLeave() { hoverCell.value = null }
 
+// ── Keyboard navigation ────────────────────────────────────────────────────
+// The board-wrap div is focusable (tabindex="0"). Arrow keys move the focus
+// cursor; Space/Enter toggle ★; D/X toggle dot. Mouse clicks also update the
+// cursor so keyboard picks up from wherever the user last clicked.
+const boardEl      = ref<HTMLElement | null>(null)
+const focusedCell  = ref<{ r: number; c: number } | null>({ r: 0, c: 0 })
+
+// Reset to top-left on every new puzzle
+watch(currentPuzzle, () => {
+  focusedCell.value = { r: 0, c: 0 }
+  elapsedMs.value   = progression.getElapsedMs()
+  startTimer()
+})
+
+// Clear cursor when solved (keyboard is no-op while solved anyway)
+watch(isSolved, (solved) => {
+  if (solved) {
+    if (lastSolve.value?.elapsedMs != null) elapsedMs.value = lastSolve.value.elapsedMs
+    stopTimer()
+    showConfetti.value = true
+    playSolve()
+    focusedCell.value = null
+  } else {
+    showConfetti.value = false
+    startTimer()
+    focusedCell.value = { r: 0, c: 0 }
+  }
+})
+
+function onBoardKey(e: KeyboardEvent) {
+  if (isSolved.value) return
+
+  // Arrow keys — move the focus cursor
+  if (e.key.startsWith('Arrow')) {
+    e.preventDefault()
+    const sz  = n.value
+    const cur = focusedCell.value ?? { r: 0, c: 0 }
+    const delta: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
+    }
+    const [dr, dc] = delta[e.key] ?? [0, 0]
+    focusedCell.value = {
+      r: Math.max(0, Math.min(sz - 1, cur.r + dr)),
+      c: Math.max(0, Math.min(sz - 1, cur.c + dc)),
+    }
+    return
+  }
+
+  const f = focusedCell.value
+  if (!f) return
+
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault()
+    onToggleStar(f.r, f.c)
+  } else if (e.key === 'd' || e.key === 'D' || e.key === 'x' || e.key === 'X') {
+    onToggleMark(f.r, f.c)
+  }
+}
+
+// Re-focus the board-wrap on pointerdown so keyboard resumes after clicking
+// the Stats modal or other UI outside the board.
+function onBoardPointerdown() { boardEl.value?.focus({ preventScroll: true }) }
+
 // ── Cell interaction with sound ────────────────────────────────────────────
 // Check the state BEFORE calling the store action so we know whether the
 // action is a "place" (→ play sound) or a "remove" (→ silent).
+// Also syncs the keyboard focus cursor to wherever the player clicked.
 function onToggleStar(r: number, c: number) {
+  focusedCell.value = { r, c }
   const before = displayCellStates.value[r][c]
   game.toggleStar(r, c)
   // Play only when placing a new star (not removing, not locked)
   if (before !== 'star' && before !== 'auto-marked') playStarPlace()
 }
 function onToggleMark(r: number, c: number) {
+  focusedCell.value = { r, c }
   const before = displayCellStates.value[r][c]
   game.toggleMark(r, c)
   // Play only when placing a dot (not toggling off, not a star cell)
@@ -130,7 +182,7 @@ function onToggleMark(r: number, c: number) {
 </script>
 
 <template>
-  <div class="board-wrap">
+  <div ref="boardEl" class="board-wrap" tabindex="0" @keydown="onBoardKey" @pointerdown="onBoardPointerdown">
     <!-- Progress bar -->
     <div class="progress" :class="{ 'progress--done': isSolved }">
       <span class="progress-time">⏱ {{ formatTime(elapsedMs) }}</span>
@@ -169,6 +221,7 @@ function onToggleMark(r: number, c: number) {
           :is-hint-extra="isHintExtra(r - 1, c - 1)"
           :in-hover-row="inHoverRow(r - 1)"
           :in-hover-col="inHoverCol(c - 1)"
+          :is-focused="focusedCell?.r === r - 1 && focusedCell?.c === c - 1"
           @hover="onCellHover(r - 1, c - 1)"
           @toggle-star="onToggleStar(r - 1, c - 1)"
           @toggle-mark="onToggleMark(r - 1, c - 1)"
@@ -206,6 +259,8 @@ function onToggleMark(r: number, c: number) {
   align-items: center;
   gap: 14px;
   container-type: inline-size;
+  /* Suppress browser focus outline — we draw our own per-cell ring */
+  outline: none;
 }
 
 /* Progress bar */

@@ -96,7 +96,7 @@ onUnmounted(() => {
       <h1 class="app-title">★ Star Battle</h1>
       <p class="app-subtitle">
         Place one star in every row, column &amp; region — no two stars may touch.<br>
-        <small class="hint-desktop">Left-click = ★ &nbsp;·&nbsp; Right-click = mark dot &nbsp;·&nbsp; Ctrl+Z = undo</small>
+        <small class="hint-desktop">Left-click = ★ &nbsp;·&nbsp; Right-click = dot &nbsp;·&nbsp; Arrows = navigate &nbsp;·&nbsp; Space = ★ &nbsp;·&nbsp; D = dot &nbsp;·&nbsp; Ctrl+Z = undo</small>
         <small class="hint-touch">Single tap = mark dot &nbsp;·&nbsp; Double tap = ★</small>
       </p>
     </header>

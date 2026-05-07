@@ -32,6 +32,8 @@ const props = defineProps<{
   /** Pointer-hover crosshair flags — drawn only on hover-capable devices. */
   inHoverRow?: boolean
   inHoverCol?: boolean
+  /** Keyboard-focus cursor — renders a blue ring around this cell. */
+  isFocused?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -231,6 +233,13 @@ onUnmounted(() => {
       aria-hidden="true"
     />
 
+    <!-- Keyboard focus cursor: blue ring marks the active navigation cell. -->
+    <div
+      v-if="isFocused"
+      class="cell__focus-ring"
+      aria-hidden="true"
+    />
+
     <!-- Extra "look at this cell" highlight: dashed violet ring -->
     <div
       v-if="isHintExtra"
@@ -392,6 +401,17 @@ onUnmounted(() => {
   z-index: 2;
   border: 2.5px dashed #8e44ad;
   border-radius: 6px;
+}
+
+/* Keyboard navigation cursor: thin blue ring, z-index above hint highlights. */
+.cell__focus-ring {
+  position: absolute;
+  inset: 2px;
+  pointer-events: none;
+  z-index: 3;
+  border: 2px solid #3498db;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(52, 152, 219, 0.25);
 }
 
 /* Star-burst: a one-shot expanding ring + 8 outward-flying particles. */
