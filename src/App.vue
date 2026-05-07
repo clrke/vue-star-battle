@@ -10,6 +10,7 @@ import HintBox from './components/HintBox.vue'
 import StatsModal from './components/StatsModal.vue'
 import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
+import { preGenerate } from './composables/useGenerator'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -37,6 +38,8 @@ function onVisibility() {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('visibilitychange', onVisibility)
+  // Warm up the generator for the highest unlocked size
+  preGenerate(progression.maxN)
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)

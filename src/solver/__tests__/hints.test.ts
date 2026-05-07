@@ -73,6 +73,7 @@ const VALID_CATEGORIES = new Set<HintCategory>([
   'triple-rows', 'triple-cols', 'triple-regions-rows', 'triple-regions-cols',
   'common-neighbor-region', 'common-neighbor-row', 'common-neighbor-col',
   'squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows',
+  'lookahead-mark',
   'wrong-mark', 'wrong-star',
   'fallback', 'contradiction', 'already-solved',
 ])

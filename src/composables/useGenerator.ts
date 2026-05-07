@@ -15,6 +15,38 @@ const TIME_LIMITS: Record<number, number> = {
   12: 120_000,
 }
 
+// ── Module-level background pre-generation singleton ───────────────────────
+// Persists across component re-mounts so the warm cache survives navigation.
+
+let bgWorker: Worker | null = null
+let bgPuzzle: Puzzle | null = null
+let bgSize: number | null = null
+
+/**
+ * Start a background worker to pre-generate a puzzle of size n.
+ * Idempotent — does nothing if already generating or caching for this size.
+ */
+export function preGenerate(n: number): void {
+  // Don't restart if already generating or already have a cache for this size
+  if (bgSize === n && (bgWorker !== null || bgPuzzle !== null)) return
+  // Terminate any in-flight background gen for a different size
+  if (bgWorker) { bgWorker.terminate(); bgWorker = null }
+  bgPuzzle = null
+  bgSize = n
+
+  const w = new Worker(
+    new URL('../workers/generator.worker.ts', import.meta.url),
+    { type: 'module' },
+  )
+  bgWorker = w
+  w.onmessage = (e: MessageEvent) => {
+    bgWorker = null
+    if (e.data.type === 'done') bgPuzzle = e.data.puzzle as Puzzle
+  }
+  w.onerror = () => { bgWorker = null }
+  w.postMessage({ n, timeLimit: TIME_LIMITS[n] ?? 5_000 })
+}
+
 export function useGenerator() {
   const status  = ref<GeneratorStatus>('idle')
   const elapsed = ref(0)   // ms since generation started (for progress display)
@@ -36,10 +68,55 @@ export function useGenerator() {
   /**
    * Start generating a puzzle of size n.
    * Resolves with the puzzle, or rejects after the time limit.
+   * Checks the background cache first; if a puzzle is ready, resolves instantly.
    */
   function generate(n: number): Promise<Puzzle> {
     if (status.value === 'generating') cancel()
 
+    // ── Fast path: serve from background cache ─────────────────────────────
+    if (bgPuzzle && bgSize === n) {
+      const cached = bgPuzzle
+      bgPuzzle = null
+      bgSize = null
+      status.value = 'done'
+      // Kick off the next background gen immediately
+      preGenerate(n)
+      return Promise.resolve(cached)
+    }
+
+    // ── In-flight path: reuse the already-running background worker ─────────
+    if (bgWorker && bgSize === n) {
+      status.value = 'generating'
+      elapsed.value = 0
+      startedAt = Date.now()
+      ticker = setInterval(() => { elapsed.value = Date.now() - startedAt }, 100)
+
+      return new Promise<Puzzle>((resolve, reject) => {
+        const prevOnMessage = bgWorker!.onmessage
+        bgWorker!.onmessage = (e: MessageEvent) => {
+          // Let the singleton bookkeeping run first
+          prevOnMessage?.call(bgWorker!, e)
+          stopTicker()
+          if (e.data.type === 'done') {
+            bgPuzzle = null   // consumed by this foreground call
+            status.value = 'done'
+            resolve(e.data.puzzle as Puzzle)
+            preGenerate(n)   // start next background gen
+          } else {
+            status.value = 'failed'
+            reject(new Error('Generation failed'))
+          }
+        }
+        bgWorker!.onerror = () => {
+          stopTicker()
+          status.value = 'failed'
+          bgWorker = null
+          reject(new Error('Worker error'))
+        }
+      })
+    }
+
+    // ── Cold path: no cache, no in-flight — start a fresh foreground gen ────
     status.value = 'generating'
     elapsed.value = 0
     startedAt = Date.now()
@@ -58,7 +135,9 @@ export function useGenerator() {
         terminate()
         if (e.data.type === 'done') {
           status.value = 'done'
-          resolve(e.data.puzzle as Puzzle)
+          const puzzle = e.data.puzzle as Puzzle
+          resolve(puzzle)
+          preGenerate(n)   // start next in background
         } else {
           status.value = 'failed'
           reject(new Error('Generation failed'))

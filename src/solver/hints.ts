@@ -60,6 +60,7 @@ export type HintCategory =
   | 'squeeze-cols'           // two consecutive cols' eligible rows form exactly 2 non-adjacent rows → claim
   | 'fish-cols'              // 3 columns confined to the same 3 rows → eliminate other cols in those rows
   | 'fish-rows'              // 3 rows confined to the same 3 cols → eliminate other rows in those cols
+  | 'lookahead-mark'         // hypothetical "what if this were a star" leaves another region/row/col empty → can't be a star
   | 'wrong-mark'             // user marked a cell that's actually a star in the unique solution
   | 'wrong-star'             // user placed a star at a cell that's not in the unique solution
   | 'fallback'
@@ -1389,6 +1390,152 @@ function findFishHint(
   return null
 }
 
+// ── Lookahead mark (1-step hypothetical) ────────────────────────────────────
+
+/**
+ * For each candidate cell C, hypothetically place a star at C and check
+ * whether any *other* unplaced region/row/column would be left with zero
+ * candidates as a result of the auto-marks the star would generate.
+ *
+ * If yes, placing C is impossible — mark C.
+ *
+ * Strictly more general than common-neighbor (which only handles the 2-
+ * candidate case). Soundness: a placement that zeroes out any required-
+ * star entity is contradictory by definition.
+ */
+function findLookaheadMarkHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n, grid } = puzzle
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!mask[r][c]) continue                  // not a candidate
+      if (state[r][c] !== 'empty') continue      // already marked / starred
+      const rid = grid[r][c]
+
+      // Build the set of cells that placing a star at (r,c) would knock out.
+      const blocked = new Set<string>()
+      for (let i = 0; i < n; i++) {
+        blocked.add(`${r},${i}`)
+        blocked.add(`${i},${c}`)
+      }
+      for (let rr = 0; rr < n; rr++)
+        for (let cc = 0; cc < n; cc++)
+          if (grid[rr][cc] === rid) blocked.add(`${rr},${cc}`)
+      for (let dr = -1; dr <= 1; dr++)
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = r + dr, nc = c + dc
+          if (nr >= 0 && nr < n && nc >= 0 && nc < n) blocked.add(`${nr},${nc}`)
+        }
+
+      // Helper to check whether all of `cands` are now blocked.
+      const allBlocked = (cands: [number, number][]) =>
+        cands.every(([cr, cc]) => blocked.has(`${cr},${cc}`))
+
+      // ── Check unplaced regions other than C's own ──
+      for (let xrid = 0; xrid < n; xrid++) {
+        if (xrid === rid) continue
+        if (placed.regions.has(xrid)) continue
+        const cands = eligibleInRegion(puzzle, mask, xrid)
+        if (cands.length === 0) continue          // already a contradiction state — leave for forced-region
+        if (allBlocked(cands)) {
+          return {
+            category: 'lookahead-mark',
+            cell: [r, c], action: 'place-mark',
+            label: 'Lookahead',
+            reason:
+              `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
+              `Region ${xrid + 1} would have no remaining candidates. So this cell can't be a star — mark it.`,
+            steps: [
+              step(
+                `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
+                { primaryCell: [r, c] },
+              ),
+              step(
+                `That star's row, column, region, and 8-adjacent cells would all be ruled out for a star — including every remaining candidate of Region ${xrid + 1}.`,
+                { primaryCell: [r, c], regions: [xrid], cells: cands },
+              ),
+              step(
+                `Region ${xrid + 1} would be left with nowhere to put its star — a contradiction. So this cell can't be a star. Mark it.`,
+                { primaryCell: [r, c], regions: [xrid] },
+              ),
+            ],
+          }
+        }
+      }
+
+      // ── Check unplaced rows other than C's own ──
+      for (let xr = 0; xr < n; xr++) {
+        if (xr === r) continue
+        if (placed.rows.has(xr)) continue
+        const cands = eligibleInRow(mask, xr)
+        if (cands.length === 0) continue
+        if (allBlocked(cands)) {
+          return {
+            category: 'lookahead-mark',
+            cell: [r, c], action: 'place-mark',
+            label: 'Lookahead',
+            reason:
+              `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
+              `Row ${ord(xr)} would have no remaining candidates. So this cell can't be a star — mark it.`,
+            steps: [
+              step(
+                `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
+                { primaryCell: [r, c] },
+              ),
+              step(
+                `That would block every remaining candidate of Row ${ord(xr)} (via shared column or adjacency).`,
+                { primaryCell: [r, c], rows: [xr], cells: cands },
+              ),
+              step(
+                `Row ${ord(xr)} would be left without a star — a contradiction. Mark this cell.`,
+                { primaryCell: [r, c], rows: [xr] },
+              ),
+            ],
+          }
+        }
+      }
+
+      // ── Check unplaced columns other than C's own ──
+      for (let xc = 0; xc < n; xc++) {
+        if (xc === c) continue
+        if (placed.cols.has(xc)) continue
+        const cands = eligibleInCol(mask, xc)
+        if (cands.length === 0) continue
+        if (allBlocked(cands)) {
+          return {
+            category: 'lookahead-mark',
+            cell: [r, c], action: 'place-mark',
+            label: 'Lookahead',
+            reason:
+              `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
+              `Column ${ord(xc)} would have no remaining candidates. So this cell can't be a star — mark it.`,
+            steps: [
+              step(
+                `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
+                { primaryCell: [r, c] },
+              ),
+              step(
+                `That would block every remaining candidate of Column ${ord(xc)} (via shared row or adjacency).`,
+                { primaryCell: [r, c], cols: [xc], cells: cands },
+              ),
+              step(
+                `Column ${ord(xc)} would be left without a star — a contradiction. Mark this cell.`,
+                { primaryCell: [r, c], cols: [xc] },
+              ),
+            ],
+          }
+        }
+      }
+    }
+  }
+  return null
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
@@ -1690,20 +1837,66 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const fish = findFishHint(puzzle, state, mask, placed)
   if (fish) return fish
 
-  // ── 11. Fallback: no logical hint available ──
-  // We deliberately do NOT reveal the next solution cell — that's a freebie
-  // and players don't want it. Single-step message so it reads as a toast
-  // rather than a multi-step walkthrough.
-  return {
-    category: 'fallback',
-    cell: null, action: 'none',
-    label: 'No logical hint',
-    reason:
-      'No single-step deduction fires for this state. Try a 2-step look-ahead or undo a recent mark.',
-    steps: [
-      step(
-        `No single-step deduction fires from your current marks. Try a 2-step look-ahead, or undo a recent mark and re-scan.`,
-      ),
-    ],
+  // ── 10.5 Lookahead mark (1-step hypothetical) ─────────────────────────────
+  const lookahead = findLookaheadMarkHint(puzzle, state, mask, placed)
+  if (lookahead) return lookahead
+
+  // ── 11. Fallback: no single-step logical rule fires ──────────────────────
+  // Instead of a generic message, find the most-constrained unplaced
+  // region/row/col (fewest candidates) and highlight it — gives the player
+  // a concrete starting point for a 2-step look-ahead without revealing
+  // the answer.
+  {
+    type Bucket = { kind: 'region' | 'row' | 'col'; idx: number; count: number }
+    let tightest: Bucket | null = null
+
+    for (let rid = 0; rid < n; rid++) {
+      if (placed.regions.has(rid)) continue
+      const cnt = eligibleInRegion(puzzle, mask, rid).length
+      if (tightest === null || cnt < tightest.count)
+        tightest = { kind: 'region', idx: rid, count: cnt }
+    }
+    for (let r = 0; r < n; r++) {
+      if (placed.rows.has(r)) continue
+      const cnt = eligibleInRow(mask, r).length
+      if (tightest === null || cnt < tightest.count)
+        tightest = { kind: 'row', idx: r, count: cnt }
+    }
+    for (let c = 0; c < n; c++) {
+      if (placed.cols.has(c)) continue
+      const cnt = eligibleInCol(mask, c).length
+      if (tightest === null || cnt < tightest.count)
+        tightest = { kind: 'col', idx: c, count: cnt }
+    }
+
+    if (tightest) {
+      const { kind, idx, count } = tightest
+      const name = kind === 'region' ? `Region ${idx + 1}` : kind === 'row' ? `Row ${ord(idx)}` : `Column ${ord(idx)}`
+      const highlight: HintHighlight =
+        kind === 'region' ? { regions: [idx] } :
+        kind === 'row'    ? { rows: [idx] } :
+                            { cols: [idx] }
+      return {
+        category: 'fallback', cell: null, action: 'none',
+        label: 'Look here',
+        reason: `${name} is the tightest constraint with ${count} candidates — try a 2-step look-ahead there.`,
+        steps: [
+          step(
+            `No single-step deduction is available from your current marks.`,
+          ),
+          step(
+            `${name} has only ${count} candidate${count === 1 ? '' : 's'} left. Try assuming each one in turn and see which leads to a contradiction — that's your next move.`,
+            highlight,
+          ),
+        ],
+      }
+    }
+
+    return {
+      category: 'fallback', cell: null, action: 'none',
+      label: 'No logical hint',
+      reason: 'No single-step deduction fires for this state. Try a 2-step look-ahead or undo a recent mark.',
+      steps: [step('No single-step deduction fires from your current marks. Try a 2-step look-ahead, or undo a recent mark and re-scan.')],
+    }
   }
 }
