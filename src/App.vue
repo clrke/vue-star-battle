@@ -10,6 +10,7 @@ import StatsModal from './components/StatsModal.vue'
 import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
 import { preGenerate, useGenerator } from './composables/useGenerator'
+import { useSound } from './composables/useSound'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -20,6 +21,7 @@ const { status: genStatus, generate } = useGenerator()
 const isGenerating = computed(() => genStatus.value === 'generating')
 
 const { darkMode, toggleDark } = useDarkMode()
+const { muted, toggleMute } = useSound()
 const showStats = ref(false)
 
 // Live XP preview on the Hint button: shows what the player will earn
@@ -99,6 +101,9 @@ onUnmounted(() => {
 
     <div class="hud-actions">
       <button class="hud-action-btn" @click="showStats = true">📊 Stats</button>
+      <button class="hud-action-btn" :aria-label="muted ? 'Unmute sounds' : 'Mute sounds'" @click="toggleMute">
+        {{ muted ? '🔇' : '🔊' }}
+      </button>
       <button class="hud-action-btn" :aria-label="darkMode ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleDark">
         {{ darkMode ? '☀️' : '🌙' }}
       </button>

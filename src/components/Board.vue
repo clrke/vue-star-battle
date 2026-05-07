@@ -6,6 +6,7 @@ import { useProgressionStore } from '../stores/progression'
 import Cell from './Cell.vue'
 import Confetti from './Confetti.vue'
 import type { BorderEdges } from '../types/puzzle'
+import { playStarPlace, playMarkPlace, playSolve } from '../composables/useSound'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -48,6 +49,7 @@ watch(isSolved, (solved) => {
     if (lastSolve.value?.elapsedMs != null) elapsedMs.value = lastSolve.value.elapsedMs
     stopTimer()
     showConfetti.value = true
+    playSolve()
   } else {
     showConfetti.value = false
     startTimer()
@@ -109,6 +111,22 @@ const inHoverRow = (r: number) => hoverCell.value?.r === r
 const inHoverCol = (c: number) => hoverCell.value?.c === c
 function onCellHover(r: number, c: number) { hoverCell.value = { r, c } }
 function onBoardLeave() { hoverCell.value = null }
+
+// ── Cell interaction with sound ────────────────────────────────────────────
+// Check the state BEFORE calling the store action so we know whether the
+// action is a "place" (→ play sound) or a "remove" (→ silent).
+function onToggleStar(r: number, c: number) {
+  const before = displayCellStates.value[r][c]
+  game.toggleStar(r, c)
+  // Play only when placing a new star (not removing, not locked)
+  if (before !== 'star' && before !== 'auto-marked') playStarPlace()
+}
+function onToggleMark(r: number, c: number) {
+  const before = displayCellStates.value[r][c]
+  game.toggleMark(r, c)
+  // Play only when placing a dot (not toggling off, not a star cell)
+  if (before === 'empty') playMarkPlace()
+}
 </script>
 
 <template>
@@ -152,8 +170,8 @@ function onBoardLeave() { hoverCell.value = null }
           :in-hover-row="inHoverRow(r - 1)"
           :in-hover-col="inHoverCol(c - 1)"
           @hover="onCellHover(r - 1, c - 1)"
-          @toggle-star="game.toggleStar(r - 1, c - 1)"
-          @toggle-mark="game.toggleMark(r - 1, c - 1)"
+          @toggle-star="onToggleStar(r - 1, c - 1)"
+          @toggle-mark="onToggleMark(r - 1, c - 1)"
         />
       </template>
     </div>
