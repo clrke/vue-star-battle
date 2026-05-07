@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { Puzzle, CellState } from '../types/puzzle'
+import type { Puzzle, CellState, DisplayCellState } from '../types/puzzle'
 import { puzzles } from '../data/puzzles'
 import { deriveHint, type Hint } from '../solver/hints'
 import { useProgressionStore } from './progression'
@@ -74,9 +74,58 @@ export const useGameStore = defineStore('game', () => {
     clearHint()
   }
 
+  // ── Display state ─────────────────────────────────────────────────────────
+  // Merges the user's CellState with derived "auto-marks": cells eliminated
+  // by an existing star (same row/col/region or 8-adjacent). Auto-marks are
+  // ONLY computed, never persisted — undoing a star removes them automatically
+  // and the user's real marks survive untouched.
+
+  const displayCellStates = computed<DisplayCellState[][]>(() => {
+    const n     = currentPuzzle.value.n
+    const grid  = currentPuzzle.value.grid
+    const user  = cellStates.value
+    if (!user.length) return []
+
+    const out: DisplayCellState[][] =
+      user.map(row => row.slice() as DisplayCellState[])
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (user[r][c] !== 'star') continue
+        const rid = grid[r][c]
+
+        // Same row / column
+        for (let i = 0; i < n; i++) {
+          if (i !== c && out[r][i] === 'empty') out[r][i] = 'auto-marked'
+          if (i !== r && out[i][c] === 'empty') out[i][c] = 'auto-marked'
+        }
+        // Same region
+        for (let rr = 0; rr < n; rr++)
+          for (let cc = 0; cc < n; cc++)
+            if (grid[rr][cc] === rid && !(rr === r && cc === c) && out[rr][cc] === 'empty')
+              out[rr][cc] = 'auto-marked'
+        // 8-adjacent
+        for (let dr = -1; dr <= 1; dr++)
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue
+            const nr = r + dr, nc = c + dc
+            if (nr < 0 || nr >= n || nc < 0 || nc >= n) continue
+            if (out[nr][nc] === 'empty') out[nr][nc] = 'auto-marked'
+          }
+      }
+    }
+    return out
+  })
+
+  /** True if the cell is auto-marked (locked by an existing star). */
+  function isLocked(row: number, col: number): boolean {
+    return displayCellStates.value[row]?.[col] === 'auto-marked'
+  }
+
   // ── Cell interaction ──────────────────────────────────────────────────────
 
   function toggleStar(row: number, col: number) {
+    if (isLocked(row, col)) return            // auto-marked → no-op
     clearHint()
     const cur = cellStates.value[row][col]
     pushHistory()
@@ -84,6 +133,7 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function toggleMark(row: number, col: number) {
+    if (isLocked(row, col)) return            // auto-marked → no-op
     clearHint()
     const cur = cellStates.value[row][col]
     if (cur === 'star') return
@@ -120,7 +170,10 @@ export const useGameStore = defineStore('game', () => {
   /** Returns the hint so the UI can display its reasoning text. */
   function showHint(): Hint {
     clearHint()
-    const hint = deriveHint(currentPuzzle.value, cellStates.value)
+    // Hint engine reads the *display* state — that way it never suggests
+    // marking a cell that's already auto-marked, and it can run pointing /
+    // claiming / pair-confinement on the auto-mark-aware eligibility mask.
+    const hint = deriveHint(currentPuzzle.value, displayCellStates.value)
     lastHint.value = hint
     if (hint.cell) {
       hintCell.value = hint.cell
@@ -218,7 +271,8 @@ export const useGameStore = defineStore('game', () => {
   }
 
   return {
-    currentPuzzle, cellStates, violations, isSolved, starCount,
+    currentPuzzle, cellStates, displayCellStates,
+    violations, isSolved, starCount,
     hintCell, lastHint, lastSolve,
     canUndo, canRedo,
     toggleStar, toggleMark, undo, redo, reset,

@@ -21,7 +21,11 @@ const variantClass = computed(() => {
     case 'pointing-region-row':
     case 'pointing-region-col':
     case 'claiming-row':
-    case 'claiming-col':     return 'hint--mark'
+    case 'claiming-col':
+    case 'pair-rows':
+    case 'pair-cols':
+    case 'pair-regions-rows':
+    case 'pair-regions-cols': return 'hint--mark'
     case 'fallback':         return 'hint--fallback'
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'

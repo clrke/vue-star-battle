@@ -6,7 +6,7 @@ import Cell from './Cell.vue'
 import type { BorderEdges } from '../types/puzzle'
 
 const game = useGameStore()
-const { currentPuzzle, cellStates, violations, isSolved, hintCell, lastHint, starCount } = storeToRefs(game)
+const { currentPuzzle, displayCellStates, violations, isSolved, hintCell, lastHint, starCount } = storeToRefs(game)
 
 const n = computed(() => currentPuzzle.value.n)
 
@@ -61,7 +61,7 @@ const hintAction = computed(() =>
           v-for="c in n"
           :key="`${r - 1},${c - 1}`"
           :region-id="currentPuzzle.grid[r - 1][c - 1]"
-          :state="cellStates[r - 1][c - 1]"
+          :state="displayCellStates[r - 1][c - 1]"
           :borders="getBorders(r - 1, c - 1)"
           :is-violated="isViolated(r - 1, c - 1)"
           :is-hint="isHint(r - 1, c - 1)"

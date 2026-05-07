@@ -1,4 +1,4 @@
-import type { Puzzle, CellState } from '../types/puzzle'
+import type { Puzzle, DisplayCellState } from '../types/puzzle'
 import { getSolution } from './solver'
 
 /* ============================================================================
@@ -21,7 +21,10 @@ import { getSolution } from './solver'
                                  → eliminate from that row/column elsewhere
      10. CLAIMING-ROW/COL      — row/col candidates all share a region
                                  → eliminate from that region elsewhere
-     11. FALLBACK              — reveal a cell from the unique solution
+     11. PAIR-CONFINEMENT      — two regions confined to the same 2 rows/cols
+                                 (or two rows/cols confined to the same
+                                 2 regions) → eliminate elsewhere
+     12. FALLBACK              — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
@@ -36,6 +39,10 @@ export type HintCategory =
   | 'pointing-region-col'   // a region's candidates all sit in one column
   | 'claiming-row'          // a row's candidates all sit in one region
   | 'claiming-col'          // a column's candidates all sit in one region
+  | 'pair-rows'             // two regions confine their candidates to the same 2 rows
+  | 'pair-cols'             // two regions confine their candidates to the same 2 columns
+  | 'pair-regions-rows'     // two rows confine their candidates to the same 2 regions
+  | 'pair-regions-cols'     // two cols confine their candidates to the same 2 regions
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
@@ -53,13 +60,13 @@ export interface Hint {
 }
 
 /** Build the "could a star still go here?" mask from the current board. */
-function eligibilityMask(puzzle: Puzzle, state: CellState[][]) {
+function eligibilityMask(puzzle: Puzzle, state: DisplayCellState[][]) {
   const { n, grid } = puzzle
   const possible = Array.from({ length: n }, () => new Array<boolean>(n).fill(true))
 
   for (let r = 0; r < n; r++)
     for (let c = 0; c < n; c++)
-      if (state[r][c] === 'marked') possible[r][c] = false
+      if (state[r][c] === 'marked' || state[r][c] === 'auto-marked') possible[r][c] = false
 
   for (let r = 0; r < n; r++) {
     for (let c = 0; c < n; c++) {
@@ -80,7 +87,7 @@ function eligibilityMask(puzzle: Puzzle, state: CellState[][]) {
   return possible
 }
 
-function placedSets(puzzle: Puzzle, state: CellState[][]) {
+function placedSets(puzzle: Puzzle, state: DisplayCellState[][]) {
   const rows    = new Set<number>()
   const cols    = new Set<number>()
   const regions = new Set<number>()
@@ -118,7 +125,7 @@ const ord = (n: number) => `${n + 1}`
 
 function findMarkHint(
   puzzle: Puzzle,
-  state: CellState[][],
+  state: DisplayCellState[][],
   stars: [number, number][],
 ): Hint | null {
   const { n, grid } = puzzle
@@ -223,7 +230,7 @@ function findMarkHint(
  */
 function findConfinementHint(
   puzzle: Puzzle,
-  state: CellState[][],
+  state: DisplayCellState[][],
   mask: boolean[][],
   placed: ReturnType<typeof placedSets>,
 ): Hint | null {
@@ -338,9 +345,182 @@ function findConfinementHint(
   return null
 }
 
+// ── Pair-confinement reasoning (advanced) ───────────────────────────────────
+
+/**
+ * "If two regions both confine their candidates to the same 2 rows
+ *  (or 2 columns), those rows belong exclusively to those two regions."
+ *
+ * This is the strongest commonly-applicable deduction in 1★ Star Battle
+ * before falling back to hypothetical reasoning. Symmetrically, if two
+ * rows (or two columns) confine their candidates to the same 2 regions,
+ * those regions belong to those rows.
+ */
+function findPairConfinementHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n, grid } = puzzle
+
+  /* ── A. Region-pair locking row/column pairs ─────────────────────── */
+
+  // Pre-compute candidate row/col sets for each unplaced region
+  const regionRows: (Set<number> | null)[] = new Array(n).fill(null)
+  const regionCols: (Set<number> | null)[] = new Array(n).fill(null)
+  for (let rid = 0; rid < n; rid++) {
+    if (placed.regions.has(rid)) continue
+    const rows = new Set<number>(), cols = new Set<number>()
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (grid[r][c] === rid && mask[r][c]) {
+          rows.add(r); cols.add(c)
+        }
+    regionRows[rid] = rows
+    regionCols[rid] = cols
+  }
+
+  const setEq = (a: Set<number>, b: Set<number>) =>
+    a.size === b.size && [...a].every(x => b.has(x))
+
+  // Two regions confined to the same 2 rows
+  for (let a = 0; a < n; a++) {
+    const rA = regionRows[a]
+    if (!rA || rA.size !== 2) continue
+    for (let b = a + 1; b < n; b++) {
+      const rB = regionRows[b]
+      if (!rB || rB.size !== 2 || !setEq(rA, rB)) continue
+      const [r1, r2] = [...rA].sort()
+      // Eliminate empty cells in those rows belonging to OTHER regions
+      for (const row of [r1, r2]) {
+        for (let c = 0; c < n; c++) {
+          const rid = grid[row][c]
+          if (rid === a || rid === b) continue
+          if (state[row][c] !== 'empty' || !mask[row][c]) continue
+          return {
+            category: 'pair-rows',
+            cell: [row, c], action: 'place-mark',
+            label: 'Region pair locks rows',
+            reason:
+              `Regions ${a + 1} and ${b + 1} can both *only* place their stars on rows ${ord(r1)} or ${ord(r2)}. ` +
+              `That means those two rows are reserved for those two regions — no other region may use them. ` +
+              `Cell (row ${ord(row)}, column ${ord(c)}) is in region ${rid + 1}, so it can't have a star. Mark it.`,
+          }
+        }
+      }
+    }
+  }
+
+  // Two regions confined to the same 2 columns
+  for (let a = 0; a < n; a++) {
+    const cA = regionCols[a]
+    if (!cA || cA.size !== 2) continue
+    for (let b = a + 1; b < n; b++) {
+      const cB = regionCols[b]
+      if (!cB || cB.size !== 2 || !setEq(cA, cB)) continue
+      const [c1, c2] = [...cA].sort()
+      for (const col of [c1, c2]) {
+        for (let r = 0; r < n; r++) {
+          const rid = grid[r][col]
+          if (rid === a || rid === b) continue
+          if (state[r][col] !== 'empty' || !mask[r][col]) continue
+          return {
+            category: 'pair-cols',
+            cell: [r, col], action: 'place-mark',
+            label: 'Region pair locks columns',
+            reason:
+              `Regions ${a + 1} and ${b + 1} can both *only* place their stars in columns ${ord(c1)} or ${ord(c2)}. ` +
+              `That means those two columns are reserved for those two regions. Cell (row ${ord(r)}, column ${ord(col)}) ` +
+              `is in region ${rid + 1}, so it can't have a star. Mark it.`,
+          }
+        }
+      }
+    }
+  }
+
+  /* ── B. Row-pair / col-pair locking region pairs ─────────────────── */
+
+  const rowRegions: (Set<number> | null)[] = new Array(n).fill(null)
+  const colRegions: (Set<number> | null)[] = new Array(n).fill(null)
+  for (let r = 0; r < n; r++) {
+    if (placed.rows.has(r)) { rowRegions[r] = null; continue }
+    const s = new Set<number>()
+    for (let c = 0; c < n; c++) if (mask[r][c]) s.add(grid[r][c])
+    rowRegions[r] = s
+  }
+  for (let c = 0; c < n; c++) {
+    if (placed.cols.has(c)) { colRegions[c] = null; continue }
+    const s = new Set<number>()
+    for (let r = 0; r < n; r++) if (mask[r][c]) s.add(grid[r][c])
+    colRegions[c] = s
+  }
+
+  // Two rows whose candidates lie inside the same 2 regions
+  for (let a = 0; a < n; a++) {
+    const rA = rowRegions[a]
+    if (!rA || rA.size !== 2) continue
+    for (let b = a + 1; b < n; b++) {
+      const rB = rowRegions[b]
+      if (!rB || rB.size !== 2 || !setEq(rA, rB)) continue
+      const [g1, g2] = [...rA].sort()
+      // Eliminate empty cells of regions g1/g2 in OTHER rows
+      for (const rid of [g1, g2]) {
+        for (let r = 0; r < n; r++) {
+          if (r === a || r === b) continue
+          for (let c = 0; c < n; c++) {
+            if (grid[r][c] !== rid) continue
+            if (state[r][c] !== 'empty' || !mask[r][c]) continue
+            return {
+              category: 'pair-regions-rows',
+              cell: [r, c], action: 'place-mark',
+              label: 'Row pair locks regions',
+              reason:
+                `Rows ${ord(a)} and ${ord(b)} can both *only* place their stars in regions ${g1 + 1} or ${g2 + 1}. ` +
+                `Those two regions are reserved for those two rows. Cell (row ${ord(r)}, column ${ord(c)}) is in ` +
+                `region ${rid + 1} but on a different row, so it can't have a star. Mark it.`,
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Two columns whose candidates lie inside the same 2 regions
+  for (let a = 0; a < n; a++) {
+    const cA = colRegions[a]
+    if (!cA || cA.size !== 2) continue
+    for (let b = a + 1; b < n; b++) {
+      const cB = colRegions[b]
+      if (!cB || cB.size !== 2 || !setEq(cA, cB)) continue
+      const [g1, g2] = [...cA].sort()
+      for (const rid of [g1, g2]) {
+        for (let r = 0; r < n; r++) {
+          for (let c = 0; c < n; c++) {
+            if (c === a || c === b) continue
+            if (grid[r][c] !== rid) continue
+            if (state[r][c] !== 'empty' || !mask[r][c]) continue
+            return {
+              category: 'pair-regions-cols',
+              cell: [r, c], action: 'place-mark',
+              label: 'Column pair locks regions',
+              reason:
+                `Columns ${ord(a)} and ${ord(b)} can both *only* place their stars in regions ${g1 + 1} or ${g2 + 1}. ` +
+                `Those two regions are reserved for those two columns. Cell (row ${ord(r)}, column ${ord(c)}) is in ` +
+                `region ${rid + 1} but on a different column, so it can't have a star. Mark it.`,
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
-export function deriveHint(puzzle: Puzzle, state: CellState[][]): Hint {
+export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const { n } = puzzle
   const mask  = eligibilityMask(puzzle, state)
   const placed = placedSets(puzzle, state)
@@ -447,7 +627,11 @@ export function deriveHint(puzzle: Puzzle, state: CellState[][]): Hint {
   const advanced = findConfinementHint(puzzle, state, mask, placed)
   if (advanced) return advanced
 
-  // ── 6. Fallback: reveal from unique solution ──
+  // ── 6. Pair confinement (two regions or two lines locking each other) ──
+  const pair = findPairConfinementHint(puzzle, state, mask, placed)
+  if (pair) return pair
+
+  // ── 7. Fallback: reveal from unique solution ──
   const solution = getSolution(puzzle)
   if (solution) {
     const next = solution.find(([r, c]) => state[r][c] !== 'star')

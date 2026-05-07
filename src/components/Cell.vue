@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted } from 'vue'
-import type { CellState, BorderEdges } from '../types/puzzle'
+import type { DisplayCellState, BorderEdges } from '../types/puzzle'
 
 const REGION_COLORS = [
   '#ffd6d6', // 0  rose
@@ -19,7 +19,7 @@ const REGION_COLORS = [
 
 defineProps<{
   regionId: number
-  state: CellState
+  state: DisplayCellState
   borders: BorderEdges
   isViolated: boolean
   isHint: boolean
@@ -126,6 +126,7 @@ onUnmounted(clearPendingTap)
     :class="{
       'cell--star': state === 'star',
       'cell--marked': state === 'marked',
+      'cell--auto-marked': state === 'auto-marked',
       'cell--violated': isViolated,
       'cell--hint': isHint,
       'cell--hint-mark': isHint && hintAction === 'place-mark',
@@ -143,7 +144,8 @@ onUnmounted(clearPendingTap)
     @touchcancel="handleTouchCancel"
   >
     <span v-if="state === 'star'"   class="cell__symbol cell__symbol--star">★</span>
-    <span v-else-if="state === 'marked'" class="cell__symbol cell__symbol--mark">·</span>
+    <span v-else-if="state === 'marked'"      class="cell__symbol cell__symbol--mark">·</span>
+    <span v-else-if="state === 'auto-marked'" class="cell__symbol cell__symbol--auto">·</span>
   </div>
 </template>
 
@@ -181,6 +183,12 @@ onUnmounted(clearPendingTap)
 
 .cell__symbol--star { color: #1a1a2e; }
 .cell__symbol--mark { color: #777; font-size: clamp(18px, 6cqi, 44px); }
+.cell__symbol--auto { color: #b5b5b5; font-size: clamp(12px, 4cqi, 28px); opacity: 0.85; }
+
+/* Auto-marks are locked: dim them and skip the hover/active feedback */
+.cell--auto-marked { cursor: default; }
+.cell--auto-marked:hover { filter: none; }
+.cell--auto-marked:active { filter: none; }
 
 /* Violation highlight */
 .cell--violated .cell__symbol--star { color: #c0392b; }
