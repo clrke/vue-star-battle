@@ -165,25 +165,25 @@ const hintAction = computed(() =>
   flex: 1;
   height: 6px;
   border-radius: 999px;
-  background: #e0e0e0;
+  background: var(--bg-subtle);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #1a1a2e;
+  background: var(--text);
   transition: width 200ms ease, background 400ms ease;
 }
 
 .progress--done .progress-fill {
-  background: #27ae60;
+  background: var(--green);
 }
 
 .progress-label {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #666;
+  color: var(--text-muted);
   min-width: 4ch;
   text-align: right;
   transition: color 400ms ease;
@@ -192,7 +192,7 @@ const hintAction = computed(() =>
 .progress-time {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #666;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   min-width: 5ch;
   transition: color 400ms ease;
@@ -200,7 +200,7 @@ const hintAction = computed(() =>
 
 .progress--done .progress-label,
 .progress--done .progress-time {
-  color: #27ae60;
+  color: var(--green);
 }
 
 /* Board */
@@ -208,7 +208,7 @@ const hintAction = computed(() =>
   display: grid;
   width: min(95vw, 75vh, 560px);
   height: min(95vw, 75vh, 560px);
-  border: 3px solid #222;
+  border: 3px solid var(--border-strong);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
   border-radius: 4px;
   overflow: hidden;
@@ -218,13 +218,13 @@ const hintAction = computed(() =>
 }
 
 .board--solved {
-  box-shadow: 0 0 0 4px #27ae60, 0 4px 24px rgba(39, 174, 96, 0.35);
+  box-shadow: 0 0 0 4px var(--green), 0 4px 24px rgba(39, 174, 96, 0.35);
 }
 
 .solved-banner {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #27ae60;
+  color: var(--green);
   letter-spacing: 0.02em;
 }
 

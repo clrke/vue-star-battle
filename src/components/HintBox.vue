@@ -116,8 +116,8 @@ function apply()   { game.applyHint() }
 <style scoped>
 .hint-box {
   width: min(560px, 92vw);
-  border-left: 4px solid #2980b9;
-  background: #f6fafd;
+  border-left: 4px solid var(--accent);
+  background: var(--bg-card);
   border-radius: 6px;
   padding: 12px 14px;
   font-size: 0.85rem;
@@ -126,11 +126,11 @@ function apply()   { game.applyHint() }
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
-.hint--logic    { border-color: #1a1a2e; background: #f0f1f7; }
-.hint--mark     { border-color: #2980b9; background: #eef6fb; }
-.hint--fallback { border-color: #f39c12; background: #fdf6ec; }
-.hint--error    { border-color: #c0392b; background: #fbeeec; }
-.hint--done     { border-color: #27ae60; background: #ecf8ef; }
+.hint--logic    { border-color: var(--text);   background: var(--bg-subtle); }
+.hint--mark     { border-color: var(--accent);  background: var(--bg-card); }
+.hint--fallback { border-color: var(--amber);   background: var(--bg-card); }
+.hint--error    { border-color: var(--red);     background: var(--bg-card); }
+.hint--done     { border-color: var(--green);   background: var(--bg-card); }
 
 .hint-header {
   display: flex;
@@ -145,17 +145,17 @@ function apply()   { game.applyHint() }
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #1a1a2e;
+  color: var(--text);
 }
 .hint-step-counter {
   font-weight: 600;
-  color: #888;
+  color: var(--text-muted);
   letter-spacing: 0.04em;
 }
-.hint--mark     .hint-label { color: #2980b9; }
-.hint--fallback .hint-label { color: #e67e22; }
-.hint--error    .hint-label { color: #c0392b; }
-.hint--done     .hint-label { color: #27ae60; }
+.hint--mark     .hint-label { color: var(--accent); }
+.hint--fallback .hint-label { color: var(--amber); }
+.hint--error    .hint-label { color: var(--red); }
+.hint--done     .hint-label { color: var(--green); }
 
 .hint-close {
   background: transparent;
@@ -163,14 +163,14 @@ function apply()   { game.applyHint() }
   font-size: 1.3rem;
   line-height: 1;
   cursor: pointer;
-  color: #999;
+  color: var(--text-muted);
   padding: 0 4px;
 }
-.hint-close:hover { color: #333; }
+.hint-close:hover { color: var(--text); }
 
 .hint-reason {
   margin: 0;
-  color: #333;
+  color: var(--text);
   min-height: 2.6em;
 }
 
@@ -187,9 +187,9 @@ function apply()   { game.applyHint() }
   transition: background 200ms ease;
 }
 .hint-progress-dot--done { background: currentColor; }
-.hint--logic .hint-progress-dot--done    { background: #1a1a2e; }
-.hint--mark .hint-progress-dot--done     { background: #2980b9; }
-.hint--fallback .hint-progress-dot--done { background: #e67e22; }
+.hint--logic .hint-progress-dot--done    { background: var(--text); }
+.hint--mark .hint-progress-dot--done     { background: var(--accent); }
+.hint--fallback .hint-progress-dot--done { background: var(--amber); }
 
 .hint-actions {
   margin-top: 10px;
@@ -201,25 +201,25 @@ function apply()   { game.applyHint() }
 .hint-btn {
   padding: 5px 14px;
   border-radius: 6px;
-  border: 1.5px solid #ccc;
-  background: #fff;
-  color: #555;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.78rem;
   font-weight: 700;
   transition: all 120ms ease;
 }
-.hint-btn:hover:not(:disabled) { border-color: #888; color: #222; }
+.hint-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
 .hint-btn:disabled { opacity: 0.35; cursor: default; }
 
 .hint-btn--primary {
   background: currentColor;
   border-color: currentColor;
-  color: #fff;
+  color: var(--bg);
 }
-.hint--logic .hint-btn--primary { background: #1a1a2e; border-color: #1a1a2e; color: #fff; }
-.hint--mark  .hint-btn--primary { background: #2980b9; border-color: #2980b9; color: #fff; }
-.hint--fallback .hint-btn--primary { background: #e67e22; border-color: #e67e22; color: #fff; }
+.hint--logic .hint-btn--primary { background: var(--text); border-color: var(--text); color: var(--bg); }
+.hint--mark  .hint-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.hint--fallback .hint-btn--primary { background: var(--amber); border-color: var(--amber); color: #fff; }
 .hint-btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
 
 /* Transition */

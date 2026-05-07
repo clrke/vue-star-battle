@@ -5,7 +5,7 @@ import { useGenerator } from '../composables/useGenerator'
 import { useGameStore } from '../stores/game'
 import { useProgressionStore } from '../stores/progression'
 
-const ALL_SIZES = [5, 6, 7, 8] as const
+const ALL_SIZES = [5, 6, 7, 8, 10, 12] as const
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -33,8 +33,9 @@ async function onGenerate() {
   }
 }
 
+const UNLOCK_LEVEL: Record<number, number> = { 6: 3, 7: 6, 8: 10, 10: 16, 12: 24 }
 const lockReasonFor = (n: number) =>
-  `Reach level ${n === 6 ? 3 : n === 7 ? 6 : 10} to unlock ${n}×${n} puzzles. ` +
+  `Reach level ${UNLOCK_LEVEL[n] ?? n} to unlock ${n}×${n} puzzles. ` +
   `(You're level ${level.value}.)`
 </script>
 
@@ -91,12 +92,12 @@ const lockReasonFor = (n: number) =>
 .size-btn {
   padding: 5px 13px;
   border-radius: 999px;
-  border: 2px solid #ddd;
-  background: #fff;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 700;
-  color: #555;
+  color: var(--text-muted);
   transition: all 120ms ease;
   display: inline-flex;
   align-items: center;
@@ -104,21 +105,21 @@ const lockReasonFor = (n: number) =>
 }
 
 .size-btn:hover:not(:disabled):not(.size-btn--active) {
-  border-color: #aaa;
-  background: #f5f5f5;
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
 }
 
 .size-btn:disabled { opacity: 0.45; cursor: default; }
 
 .size-btn--active {
-  border-color: #1a1a2e;
-  background: #1a1a2e;
-  color: #fff;
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
 }
 
 .size-btn--locked {
-  background: #f4f4f4;
-  color: #aaa;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
   cursor: not-allowed;
 }
 
@@ -127,8 +128,8 @@ const lockReasonFor = (n: number) =>
 .gen-btn {
   padding: 8px 24px;
   border-radius: 8px;
-  border: 2px solid #2980b9;
-  background: #2980b9;
+  border: 2px solid var(--accent);
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
   font-size: 0.875rem;
@@ -137,10 +138,10 @@ const lockReasonFor = (n: number) =>
   min-width: 200px;
 }
 
-.gen-btn:hover:not(.gen-btn--cancel) { background: #1a6ca0; border-color: #1a6ca0; }
+.gen-btn:hover:not(.gen-btn--cancel) { background: var(--accent-dark); border-color: var(--accent-dark); }
 
-.gen-btn--cancel { background: #e74c3c; border-color: #e74c3c; }
-.gen-btn--cancel:hover { background: #c0392b; border-color: #c0392b; }
+.gen-btn--cancel { background: var(--red); border-color: var(--red); }
+.gen-btn--cancel:hover { filter: brightness(0.9); }
 
 .gen-btn__inner { display: flex; align-items: center; justify-content: center; gap: 8px; }
 
@@ -155,7 +156,7 @@ const lockReasonFor = (n: number) =>
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .gen-error {
-  margin: 0; font-size: 0.8rem; color: #e74c3c; text-align: center;
+  margin: 0; font-size: 0.8rem; color: var(--red); text-align: center;
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }

@@ -80,15 +80,15 @@ function formatTime(ms: number) {
 <style scoped>
 .hud {
   width: min(560px, 92vw);
-  border: 2px solid #ddd;
+  border: 2px solid var(--border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--bg-card);
   overflow: hidden;
   position: relative;
   transition: border-color 200ms ease;
 }
 
-.hud--open { border-color: #aaa; }
+.hud--open { border-color: var(--border-strong); }
 
 .hud-summary {
   display: flex;
@@ -113,13 +113,13 @@ function formatTime(ms: number) {
 .hud-level__num {
   font-size: 1.05rem;
   font-weight: 800;
-  color: #1a1a2e;
+  color: var(--text);
   letter-spacing: -0.01em;
 }
 
 .hud-level__max {
   font-size: 0.7rem;
-  color: #888;
+  color: var(--text-muted);
   margin-top: 1px;
 }
 
@@ -128,7 +128,7 @@ function formatTime(ms: number) {
   position: relative;
   height: 18px;
   border-radius: 999px;
-  background: #eee;
+  background: var(--bg-subtle);
   overflow: hidden;
 }
 
@@ -154,16 +154,16 @@ function formatTime(ms: number) {
 
 .hud-arrow {
   display: inline-block;
-  color: #999;
+  color: var(--text-muted);
   font-size: 0.9rem;
   transition: transform 200ms ease;
 }
 .hud-arrow--open { transform: rotate(180deg); }
 
 .hud-details {
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
   padding: 10px 16px 12px;
-  background: #fafafa;
+  background: var(--bg-subtle);
 }
 
 .hud-stats {
@@ -174,8 +174,8 @@ function formatTime(ms: number) {
   font-size: 0.78rem;
 }
 .hud-stats > div { display: flex; justify-content: space-between; }
-.hud-stats dt { color: #888; margin: 0; }
-.hud-stats dd { color: #222; font-weight: 700; margin: 0; }
+.hud-stats dt { color: var(--text-muted); margin: 0; }
+.hud-stats dd { color: var(--text); font-weight: 700; margin: 0; }
 
 .expand-enter-active, .expand-leave-active {
   transition: opacity 200ms ease, max-height 280ms ease;
@@ -188,8 +188,8 @@ function formatTime(ms: number) {
   position: absolute;
   top: 50%; right: 14px;
   transform: translateY(-50%);
-  background: #1a1a2e;
-  color: #fff;
+  background: var(--text);
+  color: var(--bg);
   padding: 6px 14px;
   border-radius: 999px;
   font-size: 0.85rem;

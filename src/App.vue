@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
 import { useProgressionStore } from './stores/progression'
@@ -7,11 +7,16 @@ import Board from './components/Board.vue'
 import GeneratePanel from './components/GeneratePanel.vue'
 import LevelHud from './components/LevelHud.vue'
 import HintBox from './components/HintBox.vue'
+import StatsModal from './components/StatsModal.vue'
 import { puzzles } from './data/puzzles'
+import { useDarkMode } from './composables/useDarkMode'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
 const { currentPuzzle, isSolved, canUndo, canRedo } = storeToRefs(game)
+
+const { darkMode, toggleDark } = useDarkMode()
+const showStats = ref(false)
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
@@ -52,6 +57,13 @@ onUnmounted(() => {
 
     <LevelHud />
 
+    <div class="hud-actions">
+      <button class="hud-action-btn" @click="showStats = true">📊 Stats</button>
+      <button class="hud-action-btn" :aria-label="darkMode ? 'Switch to light mode' : 'Switch to dark mode'" @click="toggleDark">
+        {{ darkMode ? '☀️' : '🌙' }}
+      </button>
+    </div>
+
     <div class="puzzle-controls">
       <nav class="puzzle-nav">
         <button
@@ -75,6 +87,8 @@ onUnmounted(() => {
     </main>
 
     <HintBox />
+
+    <StatsModal v-if="showStats" @close="showStats = false" />
 
     <footer class="app-footer">
       <button class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
@@ -107,18 +121,18 @@ onUnmounted(() => {
   font-weight: 800;
   letter-spacing: -0.02em;
   margin: 0 0 4px;
-  color: #1a1a2e;
+  color: var(--text);
 }
 .app-subtitle {
   margin: 0;
   font-size: 0.85rem;
-  color: #555;
+  color: var(--text-muted);
   line-height: 1.5;
 }
 .app-subtitle small {
   display: inline-block;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-muted);
 }
 
 /* Show desktop hint for fine-pointer (mouse), touch hint for coarse-pointer */
@@ -146,17 +160,17 @@ onUnmounted(() => {
 .puzzle-btn {
   padding: 5px 14px;
   border-radius: 999px;
-  border: 2px solid #ddd;
-  background: #fff;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #444;
+  color: var(--text);
   transition: all 120ms ease;
 }
-.puzzle-btn:hover { border-color: #aaa; background: #f5f5f5; }
+.puzzle-btn:hover { border-color: var(--border-strong); background: var(--bg-subtle); }
 .puzzle-btn--active {
-  border-color: #1a1a2e; background: #1a1a2e; color: #fff;
+  border-color: var(--text); background: var(--text); color: var(--bg);
 }
 
 .controls-divider {
@@ -164,7 +178,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   width: min(360px, 90vw);
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -175,7 +189,7 @@ onUnmounted(() => {
   content: '';
   flex: 1;
   height: 1px;
-  background: #ddd;
+  background: var(--border);
 }
 
 .app-main {
@@ -196,21 +210,43 @@ onUnmounted(() => {
 .footer-btn {
   padding: 8px 20px;
   border-radius: 8px;
-  border: 2px solid #ddd;
-  background: #fff;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #555;
+  color: var(--text-muted);
   transition: all 120ms ease;
 }
-.footer-btn:hover:not(:disabled) { border-color: #aaa; color: #222; }
+.footer-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
 .footer-btn:disabled { opacity: 0.35; cursor: default; }
 
-.footer-btn--reset { border-color: #ccc; color: #555; }
+.footer-btn--reset { border-color: var(--border); color: var(--text-muted); }
 
-.footer-btn--hint { border-color: #f39c12; color: #f39c12; }
+.footer-btn--hint { border-color: var(--amber); color: var(--amber); }
 .footer-btn--hint:hover:not(:disabled) {
-  background: #fef9f0; border-color: #e67e22; color: #e67e22;
+  background: var(--bg-subtle); border-color: var(--amber); color: var(--amber);
+}
+
+.hud-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.hud-action-btn {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.hud-action-btn:hover {
+  color: var(--text);
+  background: var(--bg-subtle);
 }
 </style>

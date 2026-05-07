@@ -39,12 +39,14 @@ export function maxNForLevel(level: number): number {
   if (level < 3)  return 5
   if (level < 6)  return 6
   if (level < 10) return 7
-  return 8
+  if (level < 16) return 8
+  if (level < 24) return 10
+  return 12
 }
 
 // ── XP rewards ──────────────────────────────────────────────────────────────
 
-const BASE_XP: Record<number, number> = { 5: 25, 6: 50, 7: 100, 8: 175 }
+const BASE_XP: Record<number, number> = { 5: 25, 6: 50, 7: 100, 8: 175, 10: 350, 12: 600 }
 
 /**
  * Award curve: base × max(0.10, 1 − 0.20 × hints)

@@ -236,6 +236,9 @@ export const useGameStore = defineStore('game', () => {
       return false
     }
     clearHint()
+    // Auto-advance: immediately queue the next hint so the player can chain
+    // without clicking "Hint" again after each apply.
+    if (!isSolved.value) showHint()
     return true
   }
 

@@ -240,7 +240,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border);
   transition: filter 80ms ease;
   user-select: none;
   -webkit-user-select: none;
@@ -254,10 +254,10 @@ onUnmounted(() => {
 .cell:active { filter: brightness(0.85); }
 
 /* Thick region-boundary borders */
-.border-top    { border-top:    2.5px solid #222; }
-.border-right  { border-right:  2.5px solid #222; }
-.border-bottom { border-bottom: 2.5px solid #222; }
-.border-left   { border-left:   2.5px solid #222; }
+.border-top    { border-top:    2.5px solid var(--border-strong); }
+.border-right  { border-right:  2.5px solid var(--border-strong); }
+.border-bottom { border-bottom: 2.5px solid var(--border-strong); }
+.border-left   { border-left:   2.5px solid var(--border-strong); }
 
 .cell__symbol {
   font-size: clamp(14px, 4cqi, 32px);
@@ -265,7 +265,7 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.cell__symbol--star { color: #1a1a2e; }
+.cell__symbol--star { color: var(--text); }
 
 /* User-placed mark — solid round dot, 35 % of cell width */
 .cell__dot {
@@ -276,14 +276,14 @@ onUnmounted(() => {
 .cell__dot--user {
   width: 35%;
   height: 35%;
-  background: #444;
+  background: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 /* Derived auto-mark — smaller, dimmer, locked */
 .cell__dot--auto {
   width: 24%;
   height: 24%;
-  background: #888;
+  background: var(--text-muted);
   opacity: 0.55;
 }
 
@@ -293,7 +293,7 @@ onUnmounted(() => {
 .cell--auto-marked:active { filter: none; }
 
 /* Violation highlight */
-.cell--violated .cell__symbol--star { color: #c0392b; }
+.cell--violated .cell__symbol--star { color: var(--red); }
 .cell--violated::after {
   content: '';
   position: absolute;

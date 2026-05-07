@@ -4,10 +4,12 @@ import type { Puzzle } from '../types/puzzle'
 export type GeneratorStatus = 'idle' | 'generating' | 'done' | 'failed'
 
 const TIME_LIMITS: Record<number, number> = {
-  5: 3_000,
-  6: 6_000,
-  7: 8_000,
+  5:  3_000,
+  6:  6_000,
+  7:  8_000,
   8: 10_000,
+  10: 20_000,
+  12: 35_000,
 }
 
 export function useGenerator() {
