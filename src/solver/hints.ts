@@ -24,7 +24,10 @@ import { getSolution } from './solver'
      11. PAIR-CONFINEMENT      — two regions confined to the same 2 rows/cols
                                  (or two rows/cols confined to the same
                                  2 regions) → eliminate elsewhere
-     12. FALLBACK              — reveal a cell from the unique solution
+     12. TRIPLE-CONFINEMENT    — Hall-style N=3 extension of the pair rule:
+                                 three regions whose candidate row/col union
+                                 is exactly 3 (and mirror) → eliminate elsewhere
+     13. FALLBACK              — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
@@ -43,6 +46,10 @@ export type HintCategory =
   | 'pair-cols'             // two regions confine their candidates to the same 2 columns
   | 'pair-regions-rows'     // two rows confine their candidates to the same 2 regions
   | 'pair-regions-cols'     // two cols confine their candidates to the same 2 regions
+  | 'triple-rows'           // three regions confined to the same 3 rows
+  | 'triple-cols'           // three regions confined to the same 3 columns
+  | 'triple-regions-rows'   // three rows confined to the same 3 regions
+  | 'triple-regions-cols'   // three cols confined to the same 3 regions
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
@@ -518,6 +525,173 @@ function findPairConfinementHint(
   return null
 }
 
+// ── Triple confinement (Hall-style N=3 generalization of pair) ──────────────
+
+/**
+ * If three regions can together only place their stars in three rows, those
+ * three rows are reserved for those three regions — even when no two of them
+ * are individually confined to a 2-row pair. Same idea for columns, and the
+ * mirror direction (three rows/cols confined to three regions).
+ *
+ * Distinct from pair confinement in that the *individual* regions might each
+ * have 2 or 3 candidate rows; only the *union of the trio* equals exactly 3.
+ */
+function findTripleConfinementHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n, grid } = puzzle
+
+  type Item = { id: number; set: Set<number> }
+
+  const regionRows: Item[] = []
+  const regionCols: Item[] = []
+  for (let rid = 0; rid < n; rid++) {
+    if (placed.regions.has(rid)) continue
+    const rows = new Set<number>(), cols = new Set<number>()
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (grid[r][c] === rid && mask[r][c]) { rows.add(r); cols.add(c) }
+    regionRows.push({ id: rid, set: rows })
+    regionCols.push({ id: rid, set: cols })
+  }
+  const rowRegions: Item[] = []
+  const colRegions: Item[] = []
+  for (let r = 0; r < n; r++) {
+    if (placed.rows.has(r)) continue
+    const s = new Set<number>()
+    for (let c = 0; c < n; c++) if (mask[r][c]) s.add(grid[r][c])
+    rowRegions.push({ id: r, set: s })
+  }
+  for (let c = 0; c < n; c++) {
+    if (placed.cols.has(c)) continue
+    const s = new Set<number>()
+    for (let r = 0; r < n; r++) if (mask[r][c]) s.add(grid[r][c])
+    colRegions.push({ id: c, set: s })
+  }
+
+  /** Iterate every triple in `items` whose union has exactly 3 elements. */
+  function tryTriples(
+    items: Item[],
+    onTriple: (objIds: number[], targetIds: number[]) => Hint | null,
+  ): Hint | null {
+    for (let i = 0; i < items.length; i++) {
+      const a = items[i]; if (a.set.size === 0 || a.set.size > 3) continue
+      for (let j = i + 1; j < items.length; j++) {
+        const b = items[j]; if (b.set.size === 0 || b.set.size > 3) continue
+        for (let k = j + 1; k < items.length; k++) {
+          const c = items[k]; if (c.set.size === 0 || c.set.size > 3) continue
+          const union = new Set<number>([...a.set, ...b.set, ...c.set])
+          if (union.size !== 3) continue
+          const objIds    = [a.id, b.id, c.id].sort((x, y) => x - y)
+          const targetIds = [...union].sort((x, y) => x - y)
+          const h = onTriple(objIds, targetIds)
+          if (h) return h
+        }
+      }
+    }
+    return null
+  }
+
+  const list = (xs: number[]) => xs.map(x => x + 1).join(', ')
+
+  // ── A. Three regions lock three rows ──
+  const a = tryTriples(regionRows, (regions, rows) => {
+    for (const row of rows) {
+      for (let c = 0; c < n; c++) {
+        const rid = grid[row][c]
+        if (regions.includes(rid)) continue
+        if (state[row][c] !== 'empty' || !mask[row][c]) continue
+        return {
+          category: 'triple-rows',
+          cell: [row, c], action: 'place-mark',
+          label: 'Region triple locks rows',
+          reason:
+            `Regions ${list(regions)} together can only place their stars on rows ${list(rows)}. ` +
+            `Those three rows are reserved for those three regions — no other region may use them. ` +
+            `Cell (row ${ord(row)}, column ${ord(c)}) is in region ${rid + 1}, so it can't have a star. Mark it.`,
+        }
+      }
+    }
+    return null
+  })
+  if (a) return a
+
+  // ── B. Three regions lock three columns ──
+  const b = tryTriples(regionCols, (regions, cols) => {
+    for (const col of cols) {
+      for (let r = 0; r < n; r++) {
+        const rid = grid[r][col]
+        if (regions.includes(rid)) continue
+        if (state[r][col] !== 'empty' || !mask[r][col]) continue
+        return {
+          category: 'triple-cols',
+          cell: [r, col], action: 'place-mark',
+          label: 'Region triple locks columns',
+          reason:
+            `Regions ${list(regions)} together can only place their stars in columns ${list(cols)}. ` +
+            `Those three columns are reserved for those three regions. Cell (row ${ord(r)}, column ${ord(col)}) ` +
+            `is in region ${rid + 1}, so it can't have a star. Mark it.`,
+        }
+      }
+    }
+    return null
+  })
+  if (b) return b
+
+  // ── C. Three rows lock three regions ──
+  const c = tryTriples(rowRegions, (rows, regions) => {
+    for (const rid of regions) {
+      for (let r = 0; r < n; r++) {
+        if (rows.includes(r)) continue
+        for (let cc = 0; cc < n; cc++) {
+          if (grid[r][cc] !== rid) continue
+          if (state[r][cc] !== 'empty' || !mask[r][cc]) continue
+          return {
+            category: 'triple-regions-rows',
+            cell: [r, cc], action: 'place-mark',
+            label: 'Row triple locks regions',
+            reason:
+              `Rows ${list(rows)} together can only place their stars in regions ${list(regions)}. ` +
+              `Those three regions are reserved for those three rows. Cell (row ${ord(r)}, column ${ord(cc)}) ` +
+              `is in region ${rid + 1} but on a different row, so it can't have a star. Mark it.`,
+          }
+        }
+      }
+    }
+    return null
+  })
+  if (c) return c
+
+  // ── D. Three columns lock three regions ──
+  const d = tryTriples(colRegions, (cols, regions) => {
+    for (const rid of regions) {
+      for (let r = 0; r < n; r++) {
+        for (let cc = 0; cc < n; cc++) {
+          if (cols.includes(cc)) continue
+          if (grid[r][cc] !== rid) continue
+          if (state[r][cc] !== 'empty' || !mask[r][cc]) continue
+          return {
+            category: 'triple-regions-cols',
+            cell: [r, cc], action: 'place-mark',
+            label: 'Column triple locks regions',
+            reason:
+              `Columns ${list(cols)} together can only place their stars in regions ${list(regions)}. ` +
+              `Those three regions are reserved for those three columns. Cell (row ${ord(r)}, column ${ord(cc)}) ` +
+              `is in region ${rid + 1} but on a different column, so it can't have a star. Mark it.`,
+          }
+        }
+      }
+    }
+    return null
+  })
+  if (d) return d
+
+  return null
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
@@ -631,7 +805,11 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   const pair = findPairConfinementHint(puzzle, state, mask, placed)
   if (pair) return pair
 
-  // ── 7. Fallback: reveal from unique solution ──
+  // ── 7. Triple confinement (Hall-style N=3 generalization) ──
+  const triple = findTripleConfinementHint(puzzle, state, mask, placed)
+  if (triple) return triple
+
+  // ── 8. Fallback: reveal from unique solution ──
   const solution = getSolution(puzzle)
   if (solution) {
     const next = solution.find(([r, c]) => state[r][c] !== 'star')

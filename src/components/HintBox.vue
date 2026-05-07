@@ -25,7 +25,11 @@ const variantClass = computed(() => {
     case 'pair-rows':
     case 'pair-cols':
     case 'pair-regions-rows':
-    case 'pair-regions-cols': return 'hint--mark'
+    case 'pair-regions-cols':
+    case 'triple-rows':
+    case 'triple-cols':
+    case 'triple-regions-rows':
+    case 'triple-regions-cols': return 'hint--mark'
     case 'fallback':         return 'hint--fallback'
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'
