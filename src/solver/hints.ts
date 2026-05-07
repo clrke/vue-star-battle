@@ -237,10 +237,10 @@ function findMarkHint(
         action: 'place-mark',
         label: 'Mark row',
         reason:
-          `Row ${ord(sr)} already has its star at column ${ord(sc)}. Each row holds exactly one star.`,
+          `The highlighted row already has its star at column ${ord(sc)}. Each row holds exactly one star.`,
         steps: [
           step(
-            `Row ${ord(sr)} already has its star at column ${ord(sc)}.`,
+            `The highlighted row already has its star at column ${ord(sc)}.`,
             { rows: [sr], cells: [[sr, sc]] },
           ),
           step(
@@ -267,10 +267,10 @@ function findMarkHint(
         action: 'place-mark',
         label: 'Mark column',
         reason:
-          `Column ${ord(sc)} already has its star at row ${ord(sr)}. Each column holds exactly one star.`,
+          `The highlighted column already has its star at row ${ord(sr)}. Each column holds exactly one star.`,
         steps: [
           step(
-            `Column ${ord(sc)} already has its star at row ${ord(sr)}.`,
+            `The highlighted column already has its star at row ${ord(sr)}.`,
             { cols: [sc], cells: [[sr, sc]] },
           ),
           step(
@@ -417,7 +417,7 @@ function findConfinementHint(
             `Every column where row ${ord(r)}'s star could still go is inside the highlighted region.`,
           steps: [
             step(
-              `Look at Row ${ord(r)}.`,
+              `Look at the highlighted row.`,
               { rows: [r] },
             ),
             step(
@@ -462,7 +462,7 @@ function findConfinementHint(
             `Every row where column ${ord(c)}'s star could still go is inside the highlighted region.`,
           steps: [
             step(
-              `Look at Column ${ord(c)}.`,
+              `Look at the highlighted column.`,
               { cols: [c] },
             ),
             step(
@@ -649,10 +649,10 @@ function findPairConfinementHint(
               cell: [r, c], action: 'place-mark',
               label: 'Row pair locks regions',
               reason:
-                `Rows ${ord(a)} and ${ord(b)} can both only place stars in the two highlighted regions.`,
+                `The two highlighted rows can both only place stars in the two highlighted regions.`,
               steps: [
                 step(
-                  `Look at Rows ${ord(a)} and ${ord(b)}.`,
+                  `Look at the two highlighted rows.`,
                   { rows: [a, b] },
                 ),
                 step(
@@ -694,10 +694,10 @@ function findPairConfinementHint(
               cell: [r, c], action: 'place-mark',
               label: 'Column pair locks regions',
               reason:
-                `Columns ${ord(a)} and ${ord(b)} can both only place stars in the two highlighted regions.`,
+                `The two highlighted columns can both only place stars in the two highlighted regions.`,
               steps: [
                 step(
-                  `Look at Columns ${ord(a)} and ${ord(b)}.`,
+                  `Look at the two highlighted columns.`,
                   { cols: [a, b] },
                 ),
                 step(
@@ -808,10 +808,10 @@ function findCommonNeighborHint(
       cell: [tr, tc], action: 'place-mark',
       label: 'Both options block this',
       reason:
-        `Row ${ord(r)}'s star will go to column ${ord(c1)} or ${ord(c2)}. ` +
+        `The highlighted row's star will go to column ${ord(c1)} or ${ord(c2)}. ` +
         `Either way, (row ${ord(tr)}, col ${ord(tc)}) is adjacent.`,
       steps: [
-        step(`Look at Row ${ord(r)}.`, { rows: [r] }),
+        step(`Look at the highlighted row.`, { rows: [r] }),
         step(
           `Only two columns could hold this row's star: ${ord(c1)} or ${ord(c2)}.`,
           { rows: [r], cells: cands },
@@ -842,10 +842,10 @@ function findCommonNeighborHint(
       cell: [tr, tc], action: 'place-mark',
       label: 'Both options block this',
       reason:
-        `Column ${ord(c)}'s star will go to row ${ord(r1)} or ${ord(r2)}. ` +
+        `The highlighted column's star will go to row ${ord(r1)} or ${ord(r2)}. ` +
         `Either way, (row ${ord(tr)}, col ${ord(tc)}) is adjacent.`,
       steps: [
-        step(`Look at Column ${ord(c)}.`, { cols: [c] }),
+        step(`Look at the highlighted column.`, { cols: [c] }),
         step(
           `Only two rows could hold this column's star: ${ord(r1)} or ${ord(r2)}.`,
           { cols: [c], cells: cands },
@@ -1022,7 +1022,7 @@ function findTripleConfinementHint(
             reason:
               `Rows ${list(rows)} together can only place stars in the three highlighted regions.`,
             steps: [
-              step(`Look at Rows ${list(rows)}.`, { rows }),
+              step(`Look at the three highlighted rows.`, { rows }),
               step(
                 `Together, all their candidates fit in the three highlighted regions.`,
                 { rows, regions },
@@ -1059,7 +1059,7 @@ function findTripleConfinementHint(
             reason:
               `Columns ${list(cols)} together can only place stars in the three highlighted regions.`,
             steps: [
-              step(`Look at Columns ${list(cols)}.`, { cols }),
+              step(`Look at the three highlighted columns.`, { cols }),
               step(
                 `Together, all their candidates fit in the three highlighted regions.`,
                 { cols, regions },
@@ -1125,15 +1125,15 @@ function findSqueezeHint(
         cell: null, action: 'none',
         label: 'Squeeze conflict',
         reason:
-          `Rows ${ord(r)} and ${ord(r + 1)} each need a star, but their only eligible columns ` +
+          `The two highlighted rows each need a star, but their only eligible columns ` +
           `(${ord(c1)} and ${ord(c2)}) form a 2×2 block that can hold at most one star.`,
         steps: [
           step(
-            `Rows ${ord(r)} and ${ord(r + 1)} each need a star, but together their eligible cells are confined to columns ${ord(c1)} and ${ord(c2)}.`,
+            `The two highlighted rows each need a star, but together their eligible cells are confined to the two highlighted columns.`,
             { rows: [r, r + 1], cols: [c1, c2] },
           ),
           step(
-            `Columns ${ord(c1)} and ${ord(c2)} are adjacent — two stars in a 2×2 block would touch. This is a contradiction. Undo a recent mark.`,
+            `The highlighted columns are adjacent — two stars in a 2×2 block would touch. This is a contradiction. Undo a recent mark.`,
             { rows: [r, r + 1], cols: [c1, c2] },
           ),
         ],
@@ -1152,14 +1152,14 @@ function findSqueezeHint(
           cell: [rr, col], action: 'place-mark',
           label: 'Squeeze (rows)',
           reason:
-            `Rows ${ord(r)} and ${ord(r + 1)} can only place stars in columns ${ord(c1)} and ${ord(c2)}, so those columns are claimed.`,
+            `The two highlighted rows can only place stars in the two highlighted columns, so those columns are claimed.`,
           steps: [
             step(
-              `Look at rows ${ord(r)} and ${ord(r + 1)}. Each needs a star, and together their eligible cells are confined to just 2 columns: ${ord(c1)} and ${ord(c2)}.`,
+              `Look at the two highlighted rows. Each needs a star, and together their eligible cells are confined to just 2 columns.`,
               { rows: [r, r + 1], cols: [c1, c2] },
             ),
             step(
-              `Since those two rows must each place a star in one of those two columns, columns ${ord(c1)} and ${ord(c2)} are fully claimed by rows ${ord(r)} and ${ord(r + 1)}.`,
+              `Since those two rows must each place a star in one of the highlighted columns, those columns are fully claimed.`,
               { rows: [r, r + 1], cols: [c1, c2] },
             ),
             step(
@@ -1191,15 +1191,15 @@ function findSqueezeHint(
         cell: null, action: 'none',
         label: 'Squeeze conflict',
         reason:
-          `Columns ${ord(c)} and ${ord(c + 1)} each need a star, but their only eligible rows ` +
+          `The two highlighted columns each need a star, but their only eligible rows ` +
           `(${ord(r1)} and ${ord(r2)}) form a 2×2 block that can hold at most one star.`,
         steps: [
           step(
-            `Columns ${ord(c)} and ${ord(c + 1)} each need a star, but together their eligible cells are confined to rows ${ord(r1)} and ${ord(r2)}.`,
+            `The two highlighted columns each need a star, but together their eligible cells are confined to the two highlighted rows.`,
             { cols: [c, c + 1], rows: [r1, r2] },
           ),
           step(
-            `Rows ${ord(r1)} and ${ord(r2)} are adjacent — two stars in a 2×2 block would touch. This is a contradiction. Undo a recent mark.`,
+            `The highlighted rows are adjacent — two stars in a 2×2 block would touch. This is a contradiction. Undo a recent mark.`,
             { cols: [c, c + 1], rows: [r1, r2] },
           ),
         ],
@@ -1217,14 +1217,14 @@ function findSqueezeHint(
           cell: [row, cc], action: 'place-mark',
           label: 'Squeeze (columns)',
           reason:
-            `Columns ${ord(c)} and ${ord(c + 1)} can only place stars in rows ${ord(r1)} and ${ord(r2)}, so those rows are claimed.`,
+            `The two highlighted columns can only place stars in the two highlighted rows, so those rows are claimed.`,
           steps: [
             step(
-              `Look at columns ${ord(c)} and ${ord(c + 1)}. Each needs a star, and together their eligible cells are confined to just 2 rows: ${ord(r1)} and ${ord(r2)}.`,
+              `Look at the two highlighted columns. Each needs a star, and together their eligible cells are confined to just 2 rows.`,
               { cols: [c, c + 1], rows: [r1, r2] },
             ),
             step(
-              `Since those two columns must each place a star in one of those two rows, rows ${ord(r1)} and ${ord(r2)} are fully claimed by columns ${ord(c)} and ${ord(c + 1)}.`,
+              `Since those two columns must each place a star in one of the highlighted rows, those rows are fully claimed.`,
               { cols: [c, c + 1], rows: [r1, r2] },
             ),
             step(
@@ -1300,11 +1300,11 @@ function findFishHint(
               cell: [row, c], action: 'place-mark',
               label: 'Fish (columns)',
               reason:
-                `Columns ${list3(fishCols)} can only place stars in rows ${list3(fishRows)}, ` +
+                `The three highlighted columns can only place stars in the highlighted rows, ` +
                 `so no other column can use those rows.`,
               steps: [
                 step(
-                  `Look at Columns ${list3(fishCols)}. Each must hold a star, and all their candidates lie in just 3 rows: ${list3(fishRows)}.`,
+                  `Look at the three highlighted columns. Each must hold a star, and all their candidates lie in just 3 rows.`,
                   { cols: fishCols },
                 ),
                 step(
@@ -1364,11 +1364,11 @@ function findFishHint(
               cell: [r, col], action: 'place-mark',
               label: 'Fish (rows)',
               reason:
-                `Rows ${list3(fishRows)} can only place stars in columns ${list3(fishCols)}, ` +
+                `The three highlighted rows can only place stars in the highlighted columns, ` +
                 `so no other row can use those columns.`,
               steps: [
                 step(
-                  `Look at Rows ${list3(fishRows)}. Each must hold a star, and all their candidates lie in just 3 columns: ${list3(fishCols)}.`,
+                  `Look at the three highlighted rows. Each must hold a star, and all their candidates lie in just 3 columns.`,
                   { rows: fishRows },
                 ),
                 step(
@@ -1481,18 +1481,18 @@ function findLookaheadMarkHint(
             label: 'Lookahead',
             reason:
               `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
-              `Row ${ord(xr)} would have no remaining candidates. So this cell can't be a star — mark it.`,
+              `the highlighted row would have no remaining candidates. So this cell can't be a star — mark it.`,
             steps: [
               step(
                 `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
                 { primaryCell: [r, c] },
               ),
               step(
-                `That would block every remaining candidate of Row ${ord(xr)} (via shared column or adjacency).`,
+                `That would block every remaining candidate of the highlighted row (via shared column or adjacency).`,
                 { primaryCell: [r, c], rows: [xr], cells: cands },
               ),
               step(
-                `Row ${ord(xr)} would be left without a star — a contradiction. Mark this cell.`,
+                `The highlighted row would be left without a star — a contradiction. Mark this cell.`,
                 { primaryCell: [r, c], rows: [xr] },
               ),
             ],
@@ -1513,18 +1513,18 @@ function findLookaheadMarkHint(
             label: 'Lookahead',
             reason:
               `If a star were placed at row ${ord(r)}, column ${ord(c)}, ` +
-              `Column ${ord(xc)} would have no remaining candidates. So this cell can't be a star — mark it.`,
+              `the highlighted column would have no remaining candidates. So this cell can't be a star — mark it.`,
             steps: [
               step(
                 `Suppose you place a star at row ${ord(r)}, column ${ord(c)}.`,
                 { primaryCell: [r, c] },
               ),
               step(
-                `That would block every remaining candidate of Column ${ord(xc)} (via shared row or adjacency).`,
+                `That would block every remaining candidate of the highlighted column (via shared row or adjacency).`,
                 { primaryCell: [r, c], cols: [xc], cells: cands },
               ),
               step(
-                `Column ${ord(xc)} would be left without a star — a contradiction. Mark this cell.`,
+                `The highlighted column would be left without a star — a contradiction. Mark this cell.`,
                 { primaryCell: [r, c], cols: [xc] },
               ),
             ],
@@ -1732,10 +1732,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'contradiction',
         cell: null, action: 'none',
         label: 'Stuck',
-        reason: `Row ${ord(r)} has no cells where a star can still go.`,
+        reason: `The highlighted row has no cells where a star can still go.`,
         steps: [
           step(
-            `Row ${ord(r)} has no cells where a star can still go. Undo a recent mark or reset.`,
+            `The highlighted row has no cells where a star can still go. Undo a recent mark or reset.`,
             { rows: [r] },
           ),
         ],
@@ -1747,10 +1747,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'forced-row',
         cell: [r, c], action: 'place-star',
         label: 'Forced row',
-        reason: `Row ${ord(r)} only has one valid column left — column ${ord(c)}.`,
+        reason: `The highlighted row only has one valid column left — column ${ord(c)}.`,
         steps: [
           step(
-            `Look at Row ${ord(r)}. Each row holds exactly one star.`,
+            `Look at the highlighted row. Each row holds exactly one star.`,
             { rows: [r] },
           ),
           step(
@@ -1775,10 +1775,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'contradiction',
         cell: null, action: 'none',
         label: 'Stuck',
-        reason: `Column ${ord(c)} has no valid cells left.`,
+        reason: `The highlighted column has no valid cells left.`,
         steps: [
           step(
-            `Column ${ord(c)} has no valid cells left. Undo a recent mark or reset.`,
+            `The highlighted column has no valid cells left. Undo a recent mark or reset.`,
             { cols: [c] },
           ),
         ],
@@ -1790,10 +1790,10 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
         category: 'forced-col',
         cell: [r, c], action: 'place-star',
         label: 'Forced column',
-        reason: `Column ${ord(c)} only has one valid row left — row ${ord(r)}.`,
+        reason: `The highlighted column only has one valid row left — row ${ord(r)}.`,
         steps: [
           step(
-            `Look at Column ${ord(c)}. Each column holds exactly one star.`,
+            `Look at the highlighted column. Each column holds exactly one star.`,
             { cols: [c] },
           ),
           step(
@@ -1871,7 +1871,7 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
 
     if (tightest) {
       const { kind, idx, count } = tightest
-      const name = kind === 'region' ? `The highlighted region` : kind === 'row' ? `Row ${ord(idx)}` : `Column ${ord(idx)}`
+      const name = kind === 'region' ? `The highlighted region` : kind === 'row' ? `The highlighted row` : `The highlighted column`
       const highlight: HintHighlight =
         kind === 'region' ? { regions: [idx] } :
         kind === 'row'    ? { rows: [idx] } :
