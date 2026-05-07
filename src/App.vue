@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from './stores/game'
 import { useProgressionStore } from './stores/progression'
@@ -15,7 +15,7 @@ import { useSound } from './composables/useSound'
 const game        = useGameStore()
 const progression = useProgressionStore()
 const { isSolved, canUndo, canRedo } = storeToRefs(game)
-const { potentialXp, nextHintCost } = storeToRefs(progression)
+const { potentialXp, nextHintCost, currentSize } = storeToRefs(progression)
 
 const { status: genStatus, generate } = useGenerator()
 const isGenerating = computed(() => genStatus.value === 'generating')
@@ -65,6 +65,10 @@ function onKeydown(e: KeyboardEvent) {
 function onVisibility() {
   if (document.hidden) progression.pause()
 }
+
+// When the player levels up or down, currentSize changes — immediately start
+// pre-generating for the new size so Next is instant (or near-instant).
+watch(currentSize, (n) => { preGenerate(n) })
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
