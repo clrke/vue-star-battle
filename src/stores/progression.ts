@@ -7,6 +7,7 @@ import {
   sizeForLevel,
   xpForSolve,
   baseXpForSize,
+  hintCostForSize,
   MAX_LEVEL,
   type PerSizeStats,
   type PersistedProgression,
@@ -79,6 +80,17 @@ export const useProgressionStore = defineStore('progression', () => {
   const winsToNextLevel   = computed(() =>
     isMaxLevel.value ? null : Math.ceil(xpToNextLevel.value / baseXpForSize(currentSize.value)),
   )
+  /**
+   * XP the player would earn right now if they solved the current puzzle.
+   * Decreases with each hint used; can go negative (level-down territory).
+   * Null when there is no puzzle in progress.
+   */
+  const potentialXp       = computed(() => {
+    if (!current.value) return null
+    return xpForSolve(current.value.puzzle.n, current.value.hintsUsed)
+  })
+  /** Cost in XP of the *next* hint for the current puzzle size. */
+  const nextHintCost      = computed(() => hintCostForSize(currentSize.value))
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -201,7 +213,7 @@ export const useProgressionStore = defineStore('progression', () => {
     xp, totalSolved, totalHints, totalTimeMs, perSize, current,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
-    currentSize, maxN, isMaxLevel, winsToNextLevel,
+    currentSize, maxN, isMaxLevel, winsToNextLevel, potentialXp, nextHintCost,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,
     awardSolve, clearCurrent, reset,

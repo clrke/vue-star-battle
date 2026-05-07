@@ -14,12 +14,30 @@ import { preGenerate, useGenerator } from './composables/useGenerator'
 const game        = useGameStore()
 const progression = useProgressionStore()
 const { isSolved, canUndo, canRedo } = storeToRefs(game)
+const { potentialXp, nextHintCost } = storeToRefs(progression)
 
 const { status: genStatus, generate } = useGenerator()
 const isGenerating = computed(() => genStatus.value === 'generating')
 
 const { darkMode, toggleDark } = useDarkMode()
 const showStats = ref(false)
+
+// Live XP preview on the Hint button: shows what the player will earn
+// if they solve right now, minus the cost of the next hint they're about
+// to request. Color-codes green/muted/red to signal whether they're in
+// positive, zero, or level-down territory.
+const hintButtonXp = computed(() => {
+  // potentialXp is what they'd earn if they solved NOW (before this hint)
+  // subtract nextHintCost to show what it'll be AFTER clicking Hint
+  const after = (potentialXp.value ?? 0) - nextHintCost.value
+  return after
+})
+const hintXpClass = computed(() => {
+  const v = hintButtonXp.value
+  if (v > 0)  return 'hint-xp--pos'
+  if (v === 0) return 'hint-xp--zero'
+  return 'hint-xp--neg'
+})
 
 async function onNext() {
   if (isGenerating.value) return
@@ -31,6 +49,7 @@ async function onNext() {
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') { game.clearHint(); return }
   const mod = e.ctrlKey || e.metaKey
   if (!mod) return
   if (e.key === 'z') {
@@ -113,7 +132,12 @@ onUnmounted(() => {
         v-else
         class="footer-btn footer-btn--hint"
         @click="game.showHint()"
-      >Hint</button>
+      >
+        Hint
+        <span class="hint-xp-badge" :class="hintXpClass">
+          {{ hintButtonXp >= 0 ? '+' : '' }}{{ hintButtonXp }} XP
+        </span>
+      </button>
     </footer>
   </div>
 </template>
@@ -192,10 +216,28 @@ onUnmounted(() => {
 
 .footer-btn--reset { border-color: var(--border); color: var(--text-muted); }
 
-.footer-btn--hint { border-color: var(--amber); color: var(--amber); }
+.footer-btn--hint {
+  border-color: var(--amber);
+  color: var(--amber);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
 .footer-btn--hint:hover:not(:disabled) {
   background: var(--bg-subtle); border-color: var(--amber); color: var(--amber);
 }
+
+/* XP preview badge inside the Hint button */
+.hint-xp-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+  transition: color 200ms ease;
+}
+.hint-xp--pos  { color: #27ae60; }
+.hint-xp--zero { color: var(--text-muted); }
+.hint-xp--neg  { color: var(--red); }
 
 /* Solved-state CTA: replaces Hint with a prominent green Next button. */
 .footer-btn--next {
