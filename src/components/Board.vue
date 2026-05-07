@@ -6,7 +6,7 @@ import Cell from './Cell.vue'
 import type { BorderEdges } from '../types/puzzle'
 
 const game = useGameStore()
-const { currentPuzzle, cellStates, violations, isSolved } = storeToRefs(game)
+const { currentPuzzle, cellStates, violations, isSolved, hintCell } = storeToRefs(game)
 
 const n = computed(() => currentPuzzle.value.n)
 
@@ -24,6 +24,11 @@ function getBorders(row: number, col: number): BorderEdges {
 
 function isViolated(row: number, col: number): boolean {
   return violations.value.has(`${row},${col}`)
+}
+
+function isHint(row: number, col: number): boolean {
+  const h = hintCell.value
+  return h !== null && h[0] === row && h[1] === col
 }
 </script>
 
@@ -45,6 +50,7 @@ function isViolated(row: number, col: number): boolean {
           :state="cellStates[r - 1][c - 1]"
           :borders="getBorders(r - 1, c - 1)"
           :is-violated="isViolated(r - 1, c - 1)"
+          :is-hint="isHint(r - 1, c - 1)"
           @click="game.cycleCell(r - 1, c - 1)"
           @contextmenu="game.cycleCell(r - 1, c - 1)"
         />

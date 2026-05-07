@@ -5,7 +5,7 @@ import { puzzles } from './data/puzzles'
 import { storeToRefs } from 'pinia'
 
 const game = useGameStore()
-const { currentPuzzle } = storeToRefs(game)
+const { currentPuzzle, isSolved } = storeToRefs(game)
 </script>
 
 <template>
@@ -33,6 +33,7 @@ const { currentPuzzle } = storeToRefs(game)
 
     <footer class="app-footer">
       <button class="reset-btn" @click="game.reset">Reset</button>
+      <button class="hint-btn" :disabled="isSolved" @click="game.showHint()">Hint</button>
     </footer>
   </div>
 </template>
@@ -124,5 +125,28 @@ const { currentPuzzle } = storeToRefs(game)
 .reset-btn:hover {
   border-color: #999;
   color: #222;
+}
+
+.hint-btn {
+  padding: 8px 24px;
+  border-radius: 8px;
+  border: 2px solid #f39c12;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #f39c12;
+  transition: all 120ms ease;
+}
+
+.hint-btn:hover:not(:disabled) {
+  background: #fef9f0;
+  border-color: #e67e22;
+  color: #e67e22;
+}
+
+.hint-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 </style>

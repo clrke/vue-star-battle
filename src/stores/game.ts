@@ -2,10 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Puzzle, CellState } from '../types/puzzle'
 import { puzzles } from '../data/puzzles'
+import { getSolution } from '../solver/solver'
 
 export const useGameStore = defineStore('game', () => {
   const currentPuzzle = ref<Puzzle>(puzzles[0])
   const cellStates = ref<CellState[][]>([])
+  const hintCell = ref<[number, number] | null>(null)
+  let hintTimer: ReturnType<typeof setTimeout> | null = null
 
   // ── Initialisation ────────────────────────────────────────────────────────
 
@@ -14,6 +17,7 @@ export const useGameStore = defineStore('game', () => {
     cellStates.value = Array.from({ length: puzzle.n }, () =>
       Array<CellState>(puzzle.n).fill('empty'),
     )
+    clearHint()
   }
 
   function reset() {
@@ -24,6 +28,7 @@ export const useGameStore = defineStore('game', () => {
 
   /** Cycle a cell: empty → star → marked → empty */
   function cycleCell(row: number, col: number) {
+    clearHint()
     const cur = cellStates.value[row][col]
     const next: Record<CellState, CellState> = {
       empty: 'star',
@@ -31,6 +36,26 @@ export const useGameStore = defineStore('game', () => {
       marked: 'empty',
     }
     cellStates.value[row][col] = next[cur]
+  }
+
+  // ── Hint ──────────────────────────────────────────────────────────────────
+
+  function clearHint() {
+    if (hintTimer) { clearTimeout(hintTimer); hintTimer = null }
+    hintCell.value = null
+  }
+
+  function showHint() {
+    clearHint()
+    const solution = getSolution(currentPuzzle.value)
+    if (!solution) return
+
+    // Find the first solution cell the player hasn't starred correctly yet
+    const cell = solution.find(([r, c]) => cellStates.value[r][c] !== 'star')
+    if (!cell) return
+
+    hintCell.value = cell
+    hintTimer = setTimeout(() => { hintCell.value = null }, 2000)
   }
 
   // ── Constraint violations ─────────────────────────────────────────────────
@@ -102,7 +127,6 @@ export const useGameStore = defineStore('game', () => {
     const n = currentPuzzle.value.n
     const states = cellStates.value
 
-    // Count stars
     let starCount = 0
     for (let r = 0; r < n; r++)
       for (let c = 0; c < n; c++)
@@ -119,8 +143,10 @@ export const useGameStore = defineStore('game', () => {
     cellStates,
     violations,
     isSolved,
+    hintCell,
     cycleCell,
     reset,
     initBoard,
+    showHint,
   }
 })

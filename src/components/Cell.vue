@@ -21,6 +21,7 @@ const props = defineProps<{
   state: CellState
   borders: BorderEdges
   isViolated: boolean
+  isHint: boolean
 }>()
 
 const emit = defineEmits<{
@@ -45,6 +46,7 @@ function handleContextMenu(e: MouseEvent) {
       'cell--star': state === 'star',
       'cell--marked': state === 'marked',
       'cell--violated': isViolated,
+      'cell--hint': isHint,
       'border-top': borders.top,
       'border-right': borders.right,
       'border-bottom': borders.bottom,
@@ -107,5 +109,16 @@ function handleContextMenu(e: MouseEvent) {
   inset: 0;
   background: rgba(192, 57, 43, 0.12);
   pointer-events: none;
+}
+
+/* Hint pulse */
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 3px #f39c12; }
+  50%       { box-shadow: inset 0 0 0 3px #f1c40f, 0 0 12px 4px rgba(243, 156, 18, 0.5); }
+}
+
+.cell--hint {
+  animation: hint-pulse 0.6s ease-in-out infinite;
+  z-index: 1;
 }
 </style>
