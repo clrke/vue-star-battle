@@ -265,7 +265,7 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.cell__symbol--star { color: var(--text); }
+.cell__symbol--star { color: var(--amber); }
 
 /* User-placed mark — solid round dot, 35 % of cell width */
 .cell__dot {
@@ -277,7 +277,6 @@ onUnmounted(() => {
   width: 35%;
   height: 35%;
   background: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 /* Derived auto-mark — same opacity as user dot, just smaller and greyer
    to signal "locked / computed". */
