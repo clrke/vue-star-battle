@@ -232,6 +232,12 @@ export const useGameStore = defineStore('game', () => {
     } else if (h.action === 'place-mark' && cur !== 'marked') {
       pushHistory()
       cellStates.value[r][c] = 'marked'
+    } else if (h.action === 'remove-mark' && cur === 'marked') {
+      pushHistory()
+      cellStates.value[r][c] = 'empty'
+    } else if (h.action === 'remove-star' && cur === 'star') {
+      pushHistory()
+      cellStates.value[r][c] = 'empty'
     } else {
       return false
     }

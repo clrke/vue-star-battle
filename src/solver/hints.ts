@@ -61,11 +61,13 @@ export type HintCategory =
   | 'squeeze-cols'           // two consecutive cols' eligible rows form exactly 2 non-adjacent rows → claim
   | 'fish-cols'              // 3 columns confined to the same 3 rows → eliminate other cols in those rows
   | 'fish-rows'              // 3 rows confined to the same 3 cols → eliminate other rows in those cols
+  | 'wrong-mark'             // user marked a cell that's actually a star in the unique solution
+  | 'wrong-star'             // user placed a star at a cell that's not in the unique solution
   | 'fallback'
   | 'contradiction'
   | 'already-solved'
 
-export type HintAction = 'place-star' | 'place-mark' | 'none'
+export type HintAction = 'place-star' | 'place-mark' | 'remove-mark' | 'remove-star' | 'none'
 
 export interface Hint {
   category: HintCategory
@@ -1541,6 +1543,53 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
       label: 'Already solved',
       reason: 'Every row, column, and region already has its star. Nice work!',
       steps: [step('Every row, column, and region already has its star. Nice work!')],
+    }
+  }
+
+  // ── 0b. Wrong stars / wrong marks ─────────────────────────────────────────
+  // Compare the user's placements against the unique solution. If a star sits
+  // on a non-solution cell, or a mark sits on a solution cell, no logical
+  // deduction below can be trusted — the player must undo first.
+  // Wrong stars are checked before wrong marks (a stray star can cascade
+  // auto-marks onto solution cells, masking the real issue).
+  {
+    const solution = getSolution(puzzle)
+    if (solution) {
+      const solSet = new Set(solution.map(([r, c]) => `${r},${c}`))
+
+      for (const [r, c] of placed.stars) {
+        if (!solSet.has(`${r},${c}`)) {
+          return {
+            category: 'wrong-star', cell: [r, c], action: 'remove-star',
+            label: 'Wrong star',
+            reason: `The star at row ${ord(r)}, column ${ord(c)} doesn't belong here.`,
+            steps: [
+              step(`You've placed a star at row ${ord(r)}, column ${ord(c)}.`,
+                { primaryCell: [r, c] }),
+              step(`But the unique solution doesn't put a star here. Remove this star and try again.`,
+                { primaryCell: [r, c] }),
+            ],
+          }
+        }
+      }
+
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (state[r][c] === 'marked' && solSet.has(`${r},${c}`)) {
+            return {
+              category: 'wrong-mark', cell: [r, c], action: 'remove-mark',
+              label: 'Wrong mark',
+              reason: `You've marked row ${ord(r)}, column ${ord(c)} as impossible, but a star actually goes there.`,
+              steps: [
+                step(`You've marked row ${ord(r)}, column ${ord(c)} as impossible.`,
+                  { primaryCell: [r, c] }),
+                step(`But the unique solution places a star at this exact cell. Remove this mark — it's blocking you from finding the right move.`,
+                  { primaryCell: [r, c] }),
+              ],
+            }
+          }
+        }
+      }
     }
   }
 

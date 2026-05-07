@@ -73,10 +73,13 @@ const VALID_CATEGORIES = new Set<HintCategory>([
   'triple-rows', 'triple-cols', 'triple-regions-rows', 'triple-regions-cols',
   'common-neighbor-region', 'common-neighbor-row', 'common-neighbor-col',
   'selfish-roommate', 'squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows',
+  'wrong-mark', 'wrong-star',
   'fallback', 'contradiction', 'already-solved',
 ])
 
-const VALID_ACTIONS = new Set<HintAction>(['place-star', 'place-mark', 'none'])
+const VALID_ACTIONS = new Set<HintAction>([
+  'place-star', 'place-mark', 'remove-mark', 'remove-star', 'none',
+])
 
 // ── Invariant checker ─────────────────────────────────────────────────────────
 
@@ -114,11 +117,18 @@ function assertHintInvariants(
     expect(c, `cell col must be >= 0${tag}`).toBeGreaterThanOrEqual(0)
     expect(c, `cell col must be < n${tag}`).toBeLessThan(n)
 
-    // (4) Target cell must not already be a star or auto-marked
+    // (4) Target cell type must match the action
     const cellVal = state[r][c]
-    expect(cellVal === 'star' || cellVal === 'auto-marked',
-      `target cell (${r},${c}) is "${cellVal}" — engine must not point at star/auto-marked${tag}`,
-    ).toBe(false)
+    if (hint.action === 'remove-mark') {
+      expect(cellVal, `remove-mark target (${r},${c}) must be 'marked', got "${cellVal}"${tag}`).toBe('marked')
+    } else if (hint.action === 'remove-star') {
+      expect(cellVal, `remove-star target (${r},${c}) must be 'star', got "${cellVal}"${tag}`).toBe('star')
+    } else {
+      // place-star / place-mark must NOT target an existing star or auto-marked cell
+      expect(cellVal === 'star' || cellVal === 'auto-marked',
+        `target cell (${r},${c}) is "${cellVal}" — engine must not point at star/auto-marked${tag}`,
+      ).toBe(false)
+    }
   }
 
   return hint
@@ -200,11 +210,15 @@ describe('deriveHint — structural invariants', () => {
     }
   })
 
-  // ── (c2) Contradiction: zero-eligibility (over-marking) ───────────────────
+  // ── (c2/d2) Over-marking now caught by wrong-mark first ──────────────────
   //
-  // Mark all cells in region 0 — the engine should detect zero eligible cells.
+  // Marking every cell in a region/row necessarily marks the solution cell of
+  // that region/row, which triggers the more-helpful wrong-mark hint before
+  // the zero-eligibility contradiction path ever runs. The contradiction code
+  // remains as defensive fallback but is unreachable through normal play
+  // given the unique-solution assumption.
 
-  describe('(c2) contradiction — region fully marked (zero eligible cells)', () => {
+  describe('(c2) over-marking a region triggers wrong-mark (was zero-eligibility contradiction)', () => {
     for (const puzzle of puzzles) {
       it(`puzzle "${puzzle.title}" (n=${puzzle.n})`, () => {
         const state = emptyState(puzzle.n)
@@ -212,22 +226,21 @@ describe('deriveHint — structural invariants', () => {
           for (let c = 0; c < puzzle.n; c++)
             if (puzzle.grid[r][c] === 0) state[r][c] = 'marked'
         const hint = deriveHint(puzzle, state)
-        expect(hint.category).toBe('contradiction')
-        expect(hint.action).toBe('none')
+        expect(hint.category).toBe('wrong-mark')
+        expect(hint.action).toBe('remove-mark')
         expect(hint.steps.length).toBeGreaterThan(0)
       })
     }
   })
 
-  // ── (d2) Contradiction: zero-eligibility — row fully marked ───────────────
-
-  describe('(d2) contradiction — row fully marked (zero eligible cells)', () => {
+  describe('(d2) over-marking a row triggers wrong-mark (was zero-eligibility contradiction)', () => {
     for (const puzzle of puzzles) {
       it(`puzzle "${puzzle.title}" (n=${puzzle.n})`, () => {
         const state = emptyState(puzzle.n)
         for (let c = 0; c < puzzle.n; c++) state[0][c] = 'marked'
         const hint = deriveHint(puzzle, state)
-        expect(hint.category).toBe('contradiction')
+        expect(hint.category).toBe('wrong-mark')
+        expect(hint.action).toBe('remove-mark')
         expect(hint.steps.length).toBeGreaterThan(0)
       })
     }
@@ -609,10 +622,98 @@ describe('deriveHint — structural invariants', () => {
             expect(c).toBeGreaterThanOrEqual(0)
             expect(c).toBeLessThan(puzzle.n)
             const val = displayState[r][c]
-            expect(val, `${puzzle.id} attempt=${attempt}: target (${r},${c}) is "${val}"`).not.toBe('star')
-            expect(val, `${puzzle.id} attempt=${attempt}: target (${r},${c}) is "${val}"`).not.toBe('auto-marked')
+            // For place-* actions the target must be empty/marked.
+            // remove-* actions target stars/marks by definition.
+            if (hint.action === 'place-star' || hint.action === 'place-mark') {
+              expect(val, `${puzzle.id} attempt=${attempt}: target (${r},${c}) is "${val}"`).not.toBe('star')
+              expect(val, `${puzzle.id} attempt=${attempt}: target (${r},${c}) is "${val}"`).not.toBe('auto-marked')
+            }
           }
         }
+      }
+    })
+  })
+
+  // ── (i) Wrong-mark / wrong-star detection ─────────────────────────────────
+
+  describe('(i) wrong-mark and wrong-star firing rules', () => {
+    it('marking a solution cell triggers wrong-mark', () => {
+      for (const puzzle of puzzles) {
+        const solution = getSolution(puzzle)!
+        const [sr, sc] = solution[0]               // first solution cell
+        const state = emptyState(puzzle.n)
+        state[sr][sc] = 'marked'                   // mark a cell that should be a star
+        const hint = deriveHint(puzzle, state)
+        expect(hint.category, `${puzzle.id}: marking solution cell (${sr},${sc}) should fire wrong-mark`).toBe('wrong-mark')
+        expect(hint.action).toBe('remove-mark')
+        expect(hint.cell).toEqual([sr, sc])
+      }
+    })
+
+    it('placing a star at a non-solution cell triggers wrong-star', () => {
+      for (const puzzle of puzzles) {
+        const solution = getSolution(puzzle)!
+        const solSet = new Set(solution.map(([r, c]) => `${r},${c}`))
+        // Find a non-solution cell
+        let target: [number, number] | null = null
+        for (let r = 0; r < puzzle.n && !target; r++)
+          for (let c = 0; c < puzzle.n && !target; c++)
+            if (!solSet.has(`${r},${c}`)) target = [r, c]
+        if (!target) continue                      // shouldn't happen
+        const [tr, tc] = target
+        const state = emptyState(puzzle.n)
+        state[tr][tc] = 'star'
+        const hint = deriveHint(puzzle, state)
+        expect(hint.category, `${puzzle.id}: star at non-solution (${tr},${tc}) should fire wrong-star`).toBe('wrong-star')
+        expect(hint.action).toBe('remove-star')
+        expect(hint.cell).toEqual([tr, tc])
+      }
+    })
+
+    it('wrong-star fires before wrong-mark when both exist', () => {
+      const puzzle = puzzles[0]
+      const solution = getSolution(puzzle)!
+      const solSet = new Set(solution.map(([r, c]) => `${r},${c}`))
+      // Find a non-solution cell for the bad star
+      let bad: [number, number] | null = null
+      for (let r = 0; r < puzzle.n && !bad; r++)
+        for (let c = 0; c < puzzle.n && !bad; c++)
+          if (!solSet.has(`${r},${c}`)) bad = [r, c]
+      const [br, bc] = bad!
+      const [sr, sc] = solution[0]
+      const state = emptyState(puzzle.n)
+      state[br][bc] = 'star'                       // wrong star
+      state[sr][sc] = 'marked'                     // wrong mark on solution cell
+      const hint = deriveHint(puzzle, state)
+      expect(hint.category).toBe('wrong-star')     // star fires first
+    })
+
+    it('correct stars + correct marks do NOT trigger wrong-* hints', () => {
+      // Place a few correct stars, mark some non-solution cells.
+      for (const puzzle of puzzles) {
+        const solution = getSolution(puzzle)!
+        const solSet = new Set(solution.map(([r, c]) => `${r},${c}`))
+        const state = emptyState(puzzle.n)
+        // Place first 2 solution stars
+        for (let i = 0; i < Math.min(2, solution.length); i++) {
+          const [r, c] = solution[i]
+          state[r][c] = 'star'
+        }
+        // Mark a few non-solution, non-auto-marked cells
+        let marked = 0
+        const display = applyAutoMarks(puzzle, state)
+        for (let r = 0; r < puzzle.n && marked < 2; r++) {
+          for (let c = 0; c < puzzle.n && marked < 2; c++) {
+            if (display[r][c] === 'empty' && !solSet.has(`${r},${c}`)) {
+              state[r][c] = 'marked'
+              marked++
+            }
+          }
+        }
+        const finalDisplay = applyAutoMarks(puzzle, state)
+        const hint = deriveHint(puzzle, finalDisplay)
+        expect(hint.category, `${puzzle.id} should not fire wrong-* on correct play`).not.toBe('wrong-star')
+        expect(hint.category, `${puzzle.id} should not fire wrong-* on correct play`).not.toBe('wrong-mark')
       }
     })
   })

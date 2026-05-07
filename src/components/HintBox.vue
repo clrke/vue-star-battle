@@ -42,6 +42,8 @@ const variantClass = computed(() => {
     case 'fish-cols':
     case 'fish-rows':          return 'hint--mark'
     case 'fallback':           return 'hint--fallback'
+    case 'wrong-mark':
+    case 'wrong-star':
     case 'contradiction':    return 'hint--error'
     case 'already-solved':   return 'hint--done'
     default:                 return ''
@@ -54,7 +56,13 @@ const canApply = computed(() =>
 
 const applyLabel = computed(() => {
   if (!lastHint.value) return ''
-  return lastHint.value.action === 'place-star' ? 'Place ★' : 'Place dot'
+  switch (lastHint.value.action) {
+    case 'place-star':  return 'Place ★'
+    case 'place-mark':  return 'Place dot'
+    case 'remove-mark': return 'Remove dot'
+    case 'remove-star': return 'Remove ★'
+    default:            return ''
+  }
 })
 
 const isMultiStep = computed(() => totalHintSteps.value > 1)
