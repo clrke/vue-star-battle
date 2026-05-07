@@ -61,6 +61,34 @@ const puzzle5x5: Puzzle = {
   ],
 }
 
+// Stars: (0,1),(1,3),(2,0),(3,4),(4,2) — all non-adjacent
+const puzzle5x5b: Puzzle = {
+  id: 'classic-5b',
+  title: 'Classic 5×5 II',
+  n: 5,
+  grid: [
+    [0, 0, 0, 1, 1],
+    [2, 0, 0, 1, 1],
+    [2, 4, 4, 3, 1],
+    [2, 4, 4, 3, 3],
+    [2, 2, 4, 3, 3],
+  ],
+}
+
+// Stars: (0,3),(1,0),(2,2),(3,4),(4,1) — all non-adjacent
+const puzzle5x5c: Puzzle = {
+  id: 'classic-5c',
+  title: 'Classic 5×5 III',
+  n: 5,
+  grid: [
+    [1, 1, 0, 0, 0],
+    [1, 1, 1, 0, 0],
+    [4, 2, 2, 2, 3],
+    [4, 4, 2, 2, 3],
+    [4, 4, 3, 3, 3],
+  ],
+}
+
 const puzzle6x6: Puzzle = {
   id: 'classic-6',
   title: 'Classic 6×6',
@@ -91,4 +119,8 @@ const puzzle8x8: Puzzle = {
   ],
 }
 
-export const puzzles: Puzzle[] = [puzzle4x4a, puzzle4x4b, puzzle4x4c, puzzle5x5, puzzle6x6, puzzle8x8].map(withDifficulty)
+export const puzzles: Puzzle[] = [
+  puzzle4x4a, puzzle4x4b, puzzle4x4c,
+  puzzle5x5, puzzle5x5b, puzzle5x5c,
+  puzzle6x6, puzzle8x8,
+].map(withDifficulty)

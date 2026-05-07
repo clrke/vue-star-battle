@@ -8,7 +8,7 @@ const progression = useProgressionStore()
 const game        = useGameStore()
 const {
   level, xp, xpIntoLevel, xpForLevelSpan, xpToNextLevel, currentSize,
-  totalSolved, totalHints, totalTimeMs,
+  totalSolved, totalHints, totalTimeMs, isMaxLevel, winsToNextLevel,
 } = storeToRefs(progression)
 const { lastSolve } = storeToRefs(game)
 
@@ -32,7 +32,7 @@ watch(lastSolve, (s) => {
 })
 
 const progressPct = computed(() =>
-  Math.min(100, (xpIntoLevel.value / xpForLevelSpan.value) * 100),
+  isMaxLevel.value ? 100 : Math.min(100, (xpIntoLevel.value / xpForLevelSpan.value) * 100),
 )
 
 function formatTime(ms: number) {
@@ -52,10 +52,11 @@ function formatTime(ms: number) {
         <span class="hud-level__max">Playing {{ currentSize }}×{{ currentSize }}</span>
       </div>
 
-      <div class="hud-bar">
+      <div class="hud-bar" :class="{ 'hud-bar--max': isMaxLevel }">
         <div class="hud-bar__fill" :style="{ width: `${progressPct}%` }" />
         <span class="hud-bar__label">
-          {{ xpIntoLevel.toLocaleString() }} / {{ xpForLevelSpan.toLocaleString() }} XP
+          <template v-if="isMaxLevel">★ Max Level ★</template>
+          <template v-else>{{ xpIntoLevel.toLocaleString() }} / {{ xpForLevelSpan.toLocaleString() }} XP</template>
         </span>
       </div>
 
@@ -66,7 +67,14 @@ function formatTime(ms: number) {
       <div v-if="expanded" class="hud-details">
         <dl class="hud-stats">
           <div><dt>Total XP</dt><dd>{{ xp.toLocaleString() }}</dd></div>
-          <div><dt>To next level</dt><dd>{{ xpToNextLevel.toLocaleString() }}</dd></div>
+          <div v-if="!isMaxLevel">
+            <dt>To next level</dt>
+            <dd>{{ xpToNextLevel.toLocaleString() }} XP</dd>
+          </div>
+          <div v-if="!isMaxLevel && winsToNextLevel !== null">
+            <dt>Clean wins needed</dt>
+            <dd>~{{ winsToNextLevel }}</dd>
+          </div>
           <div><dt>Puzzles solved</dt><dd>{{ totalSolved }}</dd></div>
           <div><dt>Hints used</dt><dd>{{ totalHints }}</dd></div>
           <div><dt>Total play time</dt><dd>{{ formatTime(totalTimeMs) }}</dd></div>
@@ -152,6 +160,9 @@ function formatTime(ms: number) {
   background: linear-gradient(90deg, #2980b9, #6a89cc);
   transition: width 400ms ease;
   border-radius: 999px;
+}
+.hud-bar--max .hud-bar__fill {
+  background: linear-gradient(90deg, #c8962c, #e8c84a);
 }
 
 .hud-bar__label {

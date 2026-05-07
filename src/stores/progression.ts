@@ -6,6 +6,8 @@ import {
   levelForXp,
   sizeForLevel,
   xpForSolve,
+  baseXpForSize,
+  MAX_LEVEL,
   type PerSizeStats,
   type PersistedProgression,
   type SavedPuzzle,
@@ -68,6 +70,15 @@ export const useProgressionStore = defineStore('progression', () => {
   const currentSize       = computed(() => sizeForLevel(level.value))
   /** Backwards-compat alias (some components still reference maxN). */
   const maxN              = currentSize
+  /** True when the player has reached the highest available level. */
+  const isMaxLevel        = computed(() => level.value >= MAX_LEVEL)
+  /**
+   * Approximate number of *clean* (hint-free) wins needed to reach the next
+   * level. Null at max level. Rounds up; heavy hint use will require more.
+   */
+  const winsToNextLevel   = computed(() =>
+    isMaxLevel.value ? null : Math.ceil(xpToNextLevel.value / baseXpForSize(currentSize.value)),
+  )
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -190,7 +201,7 @@ export const useProgressionStore = defineStore('progression', () => {
     xp, totalSolved, totalHints, totalTimeMs, perSize, current,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
-    currentSize, maxN,
+    currentSize, maxN, isMaxLevel, winsToNextLevel,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,
     awardSolve, clearCurrent, reset,
