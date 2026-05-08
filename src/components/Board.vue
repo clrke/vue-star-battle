@@ -102,6 +102,37 @@ const inHoverCol = (c: number) => hoverCell.value?.c === c
 function onCellHover(r: number, c: number) { hoverCell.value = { r, c } }
 function onBoardLeave() { hoverCell.value = null }
 
+// ── Share result ──────────────────────────────────────────────────────────
+const shareCopied = ref(false)
+let shareTimer: ReturnType<typeof setTimeout> | null = null
+
+async function share() {
+  const s = lastSolve.value
+  if (!s) return
+
+  const size    = `${n.value}×${n.value}`
+  const time    = formatTime(s.elapsedMs)
+  const clean   = s.streak >= 1
+  const url     = window.location.origin + import.meta.env.BASE_URL
+
+  let text = `⭐ Star Battle — ${size} solved in ${time}`
+  if (clean) text += ' · no hints'
+  if (s.isPersonalBest) text += ' · 🏆 Personal best!'
+  if (s.streak >= 2) text += `\n🔥 ${s.streak} clean in a row`
+  text += `\n${url}`
+
+  if (navigator.share) {
+    try { await navigator.share({ text }) } catch { /* user cancelled */ }
+  } else {
+    try {
+      await navigator.clipboard.writeText(text)
+      if (shareTimer) clearTimeout(shareTimer)
+      shareCopied.value = true
+      shareTimer = setTimeout(() => { shareCopied.value = false }, 1800)
+    } catch { /* clipboard blocked — silently skip */ }
+  }
+}
+
 // ── Keyboard navigation ────────────────────────────────────────────────────
 // The board-wrap div is focusable (tabindex="0"). Arrow keys move the focus
 // cursor; Space/Enter toggle ★; D/X toggle dot. Mouse clicks also update the
@@ -259,6 +290,10 @@ function onToggleMark(r: number, c: number) {
         <div v-if="lastSolve && lastSolve.streak >= 2" class="solved-streak">🔥 {{ lastSolve.streak }} clean in a row!</div>
         <div v-if="lastSolve?.leveledUp" class="solved-level">⬆ Leveled up!</div>
         <div v-else-if="lastSolve?.leveledDown" class="solved-level solved-level--down">⬇ Level down</div>
+        <div class="solved-share">
+          <button v-if="!shareCopied" class="share-btn" @click="share">📤 Share</button>
+          <span v-else class="share-copied">Copied ✓</span>
+        </div>
       </div>
     </Transition>
 
@@ -400,6 +435,27 @@ function onToggleMark(r: number, c: number) {
   color: var(--green);
 }
 .solved-level--down { color: var(--text-muted); }
+
+.solved-share { margin-top: 2px; }
+
+.share-btn {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.share-btn:hover { border-color: var(--border-strong); color: var(--text); }
+
+.share-copied {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--green);
+}
 
 .solved-enter-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .solved-enter-from   { opacity: 0; transform: scale(0.6); }
