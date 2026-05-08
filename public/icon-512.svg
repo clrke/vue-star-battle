@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dark rounded tile background -->
+  <rect width="512" height="512" rx="96" fill="#1a1a2e"/>
+  <!-- Gold star -->
+  <text x="256" y="356" font-size="300" font-family="system-ui,sans-serif"
+        text-anchor="middle" dominant-baseline="auto" fill="#e6a817">★</text>
+</svg>
