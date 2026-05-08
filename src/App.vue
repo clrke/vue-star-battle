@@ -12,6 +12,7 @@ import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
 import { preGenerate, useGenerator } from './composables/useGenerator'
 import { useSound } from './composables/useSound'
+import { getDailyPuzzle, dailySolvedToday, markDailySolved, todayUTC } from './composables/useDaily'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -25,6 +26,20 @@ const { darkMode, toggleDark } = useDarkMode()
 const { muted, toggleMute } = useSound()
 const showStats   = ref(false)
 const showHelp    = ref(false)
+
+// ── Daily puzzle ──────────────────────────────────────────────────────────────
+function onDaily() {
+  const puzzle = getDailyPuzzle()
+  if (!puzzle) return               // generation failed — button stays available
+  game.initBoard(puzzle)
+}
+
+// When the player finishes ANY puzzle, check if it was today's daily
+watch(isSolved, (solved) => {
+  if (solved && game.currentPuzzle.id === `daily-${todayUTC()}`) {
+    markDailySolved()
+  }
+})
 
 // Hint cost is debited from XP immediately in recordHintUsed(); the badge
 // just shows that flat negative cost so the player knows exactly what
@@ -114,6 +129,12 @@ onUnmounted(() => {
 
     <div class="hud-actions">
       <button class="hud-action-btn" aria-label="How to play" @click="showHelp = true">❓</button>
+      <button
+        class="hud-action-btn"
+        :class="{ 'hud-action-btn--daily-done': dailySolvedToday }"
+        :title="dailySolvedToday ? 'Daily puzzle solved ✓' : 'Play today\'s daily puzzle'"
+        @click="onDaily"
+      >{{ dailySolvedToday ? '✅' : '📅' }}</button>
       <button class="hud-action-btn" @click="showStats = true">📊 Stats</button>
       <button class="hud-action-btn" :aria-label="muted ? 'Unmute sounds' : 'Mute sounds'" @click="toggleMute">
         {{ muted ? '🔇' : '🔊' }}
@@ -310,5 +331,13 @@ onUnmounted(() => {
 .hud-action-btn:hover {
   color: var(--text);
   background: var(--bg-subtle);
+}
+.hud-action-btn--daily-done {
+  opacity: 0.6;
+  cursor: default;
+}
+.hud-action-btn--daily-done:hover {
+  color: var(--text-muted);
+  background: transparent;
 }
 </style>

@@ -114,9 +114,12 @@ async function share() {
   const time    = formatTime(s.elapsedMs)
   const clean   = s.streak >= 1
   const url     = window.location.origin + import.meta.env.BASE_URL
+  const isDaily = currentPuzzle.value.id.startsWith('daily-')
 
   // Build the descriptive body (no URL — passed separately to native share)
-  let shareBody = `⭐ Star Battle — ${size} solved in ${time}`
+  let shareBody = isDaily
+    ? `📅 Daily Star Battle ${currentPuzzle.value.title} — solved in ${time}`
+    : `⭐ Star Battle — ${size} solved in ${time}`
   if (clean) shareBody += ' · no hints'
   if (s.isPersonalBest) shareBody += ' · 🏆 Personal best!'
   if (s.streak >= 2) shareBody += `\n🔥 ${s.streak} clean in a row`
