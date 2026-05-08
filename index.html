@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vue-star-battle/favicon.svg" />
-    <link rel="apple-touch-icon"          href="/vue-star-battle/icon-192.svg" />
-    <link rel="manifest"                  href="/vue-star-battle/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="apple-touch-icon"          href="%BASE_URL%icon-192.svg" />
+    <link rel="manifest"                  href="%BASE_URL%manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color"                  content="#1a1a2e" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -19,8 +19,8 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/vue-star-battle/sw.js', {
-            scope: '/vue-star-battle/'
+          navigator.serviceWorker.register('%BASE_URL%sw.js', {
+            scope: '%BASE_URL%'
           })
         })
       }

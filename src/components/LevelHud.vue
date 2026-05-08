@@ -274,20 +274,22 @@ function formatTime(ms: number) {
 .float-up-enter-from   { opacity: 0; transform: translateY(-30%); }
 .float-up-leave-to     { opacity: 0; transform: translateY(-80%); }
 
-/* Hint debit toast — small red flash next to the XP bar */
+/* Hint debit toast — brief red flash at the right of the HUD bar.
+   Mirrors .xp-toast position; both are mutually exclusive (hinting and
+   solving can't happen simultaneously in normal play). */
 .hint-toast {
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 0.72rem;
+  top: 50%; right: 14px;
+  transform: translateY(-50%);
+  font-size: 0.78rem;
   font-weight: 800;
   color: var(--red, #e74c3c);
   pointer-events: none;
   white-space: nowrap;
   letter-spacing: 0.02em;
 }
-.hint-fade-enter-active { transition: all 0.15s ease; }
-.hint-fade-leave-active { transition: all 0.9s ease; }
-.hint-fade-enter-from   { opacity: 0; transform: translate(-50%, -60%); }
-.hint-fade-leave-to     { opacity: 0; transform: translate(-50%, -80%); }
+.hint-fade-enter-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.hint-fade-leave-active { transition: opacity 0.9s ease, transform 0.9s ease; }
+.hint-fade-enter-from   { opacity: 0; transform: translateY(-80%); }
+.hint-fade-leave-to     { opacity: 0; transform: translateY(-120%); }
 </style>
