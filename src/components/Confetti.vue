@@ -61,9 +61,13 @@ function launch() {
   }
 
   const GRAVITY = 0.35
+  // Capture dimensions in const closures — TS loses null-narrowing on `cvs`
+  // inside the nested tick() function, so reading cvs.width there errors.
+  const W = cvs.width
+  const H = cvs.height
 
   function tick() {
-    ctx.clearRect(0, 0, cvs.width, cvs.height)
+    ctx.clearRect(0, 0, W, H)
     let alive = 0
 
     for (const p of particles) {

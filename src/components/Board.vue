@@ -252,7 +252,7 @@ function onToggleMark(r: number, c: number) {
             <span class="solved-pb">🏆 Best!</span>
           </template>
         </div>
-        <div v-if="lastSolve?.streak >= 2" class="solved-streak">🔥 {{ lastSolve.streak }} clean in a row!</div>
+        <div v-if="lastSolve && lastSolve.streak >= 2" class="solved-streak">🔥 {{ lastSolve.streak }} clean in a row!</div>
         <div v-if="lastSolve?.leveledUp" class="solved-level">⬆ Leveled up!</div>
         <div v-else-if="lastSolve?.leveledDown" class="solved-level solved-level--down">⬇ Level down</div>
       </div>
