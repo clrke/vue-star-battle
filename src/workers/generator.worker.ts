@@ -9,9 +9,29 @@ import type { Puzzle } from '../types/puzzle'
  * needing the solver-fallback hint).  If the time budget runs out without
  * finding one, fail outright — the UI surfaces "Generation timed out" and
  * the user can retry.  We do NOT ship non-pure puzzles, ever.
+ *
+ * Optional `seed` field: if provided, Math.random is replaced with a
+ * mulberry32 PRNG seeded by that value for the entire generation run.
+ * Since the worker runs in isolation this is safe — it only affects this
+ * worker's Math.random and has no cross-thread impact.
  */
-self.onmessage = (e: MessageEvent<{ n: number; timeLimit: number }>) => {
-  const { n, timeLimit } = e.data
+
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s += 0x6d2b79f5
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
+  }
+}
+
+self.onmessage = (e: MessageEvent<{ n: number; timeLimit: number; seed?: number }>) => {
+  const { n, timeLimit, seed } = e.data
+
+  // Deterministic generation for daily puzzles — safe to set permanently in
+  // this worker since it never needs to be restored (workers are single-use).
+  if (seed !== undefined) Math.random = mulberry32(seed)
   const deadline = Date.now() + timeLimit
 
   // Per-attempt budget — long enough for the SA generator to find a unique

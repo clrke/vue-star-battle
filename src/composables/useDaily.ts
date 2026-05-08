@@ -1,73 +1,102 @@
 /**
  * Daily puzzle — one deterministic 5×5 puzzle per UTC calendar day.
  *
- * Everyone on the same calendar day (UTC) gets the same puzzle, making it
- * a community challenge. Fixed at 5×5 so it's accessible at any level and
- * fast to generate (<100 ms typical).
- *
- * Seeding: we temporarily replace Math.random with a mulberry32 PRNG keyed
- * to the day index during generation. The generator is synchronous with no
- * async interleaving, so monkey-patching is safe.
+ * Everyone on the same UTC day gets the same puzzle. The generator worker
+ * is seeded with mulberry32(dayIndex × 31337) so the result is
+ * bit-for-bit identical for every player. Generation runs off the main
+ * thread (no UI freeze), is kicked off on app mount, and cached for the
+ * session.
  */
 import { ref } from 'vue'
-import { generatePuzzle } from '../solver/generator'
 import type { Puzzle } from '../types/puzzle'
 
-const DAILY_SIZE   = 5
-const STORAGE_KEY  = 'star-battle/daily/v1'
+export const DAILY_SIZE  = 5          // fixed 5×5: fast, accessible at any level
+const DAILY_TIME_LIMIT   = 10_000     // ms budget per attempt in the worker
+const STORAGE_KEY        = 'star-battle/daily/v1'
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+// ── Day index ─────────────────────────────────────────────────────────────────
 
 export function todayUTC(): number {
-  return Math.floor(Date.now() / 86_400_000)   // UTC day index since epoch
+  return Math.floor(Date.now() / 86_400_000)
 }
 
-function mulberry32(seed: number): () => number {
-  let s = seed >>> 0
-  return () => {
-    s += 0x6d2b79f5
-    let t = Math.imul(s ^ (s >>> 15), 1 | s)
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
-  }
-}
+// ── Worker management (module-level singleton, like preGenerate) ──────────────
 
-// ── Generation (lazy, cached per day) ─────────────────────────────────────────
+let _day:       number          = -1
+let _puzzle:    Puzzle | null   = null
+let _worker:    Worker | null   = null
+let _pending:   Array<(p: Puzzle | null) => void> = []
 
-let _cachedDay    = -1
-let _cachedPuzzle: Puzzle | null = null
+function startWorker(day: number) {
+  if (_worker) return      // already in flight for this day
+  _puzzle = null
 
-function generateForDay(day: number): Puzzle | null {
-  // Try up to 4 seeds; stop on first success (different seeds → different shapes)
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const seed   = day * 31_337 + attempt * 9_973
-    const rng    = mulberry32(seed)
-    const prev   = Math.random
-    Math.random  = rng
-    try {
-      const puzzle = generatePuzzle(DAILY_SIZE, Date.now() + 8_000)
-      if (puzzle) {
-        puzzle.id    = `daily-${day}`
-        puzzle.title = `Daily #${day}`
-        return puzzle
-      }
-    } finally {
-      Math.random = prev
+  const w = new Worker(
+    new URL('../workers/generator.worker.ts', import.meta.url),
+    { type: 'module' },
+  )
+  _worker = w
+
+  // Each day gets a unique but stable seed (prime-scaled to avoid low-entropy clumps)
+  const seed = (day * 31_337) >>> 0
+
+  w.onmessage = (e: MessageEvent) => {
+    _worker = null
+    if (e.data.type === 'done') {
+      const puzzle = e.data.puzzle as Puzzle
+      puzzle.id    = `daily-${day}`
+      puzzle.title = `Daily #${day}`
+      _puzzle = puzzle
     }
+    const result = _puzzle
+    _pending.forEach(cb => cb(result))
+    _pending = []
   }
-  return null
+  w.onerror = () => {
+    _worker = null
+    _pending.forEach(cb => cb(null))
+    _pending = []
+  }
+  w.postMessage({ n: DAILY_SIZE, timeLimit: DAILY_TIME_LIMIT, seed })
 }
 
-export function getDailyPuzzle(): Puzzle | null {
+/**
+ * Kick off background generation for today's daily puzzle.
+ * Idempotent — safe to call multiple times. Call on app mount so the
+ * puzzle is ready before the user ever clicks the 📅 button.
+ */
+export function preGenerateDaily(): void {
   const day = todayUTC()
-  if (day !== _cachedDay) {
-    _cachedDay    = day
-    _cachedPuzzle = generateForDay(day)
-  }
-  return _cachedPuzzle
+  if (_day === day && (_puzzle !== null || _worker !== null)) return
+  _day    = day
+  _puzzle = null
+  startWorker(day)
 }
 
-// ── Solved-today state (localStorage) ─────────────────────────────────────────
+/**
+ * Resolve to today's daily puzzle (waits for background generation if
+ * not yet complete). Rejects never — returns null on failure.
+ */
+export function getDailyPuzzle(): Promise<Puzzle | null> {
+  const day = todayUTC()
+  if (_day === day && _puzzle) return Promise.resolve(_puzzle)
+
+  return new Promise(resolve => {
+    // Ensure generation is running for today
+    if (_day !== day) {
+      _day    = day
+      _puzzle = null
+      if (_worker) { _worker.terminate(); _worker = null }
+      startWorker(day)
+    } else if (!_worker) {
+      // Same day but worker finished without a puzzle — retry once
+      startWorker(day)
+    }
+    _pending.push(resolve)
+  })
+}
+
+// ── Solved-today persistence ──────────────────────────────────────────────────
 
 interface DailyRecord { day: number }
 
@@ -79,10 +108,12 @@ function loadRecord(): DailyRecord | null {
 const _today  = todayUTC()
 const _record = loadRecord()
 
+/** True when the player has already solved today's daily puzzle. */
 export const dailySolvedToday = ref(_record?.day === _today)
 
-export function markDailySolved() {
+export function markDailySolved(): void {
   dailySolvedToday.value = true
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ day: _today } satisfies DailyRecord)) }
-  catch { /* storage unavailable */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ day: _today } satisfies DailyRecord))
+  } catch { /* storage unavailable */ }
 }

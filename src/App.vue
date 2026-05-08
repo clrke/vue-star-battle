@@ -12,7 +12,7 @@ import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
 import { preGenerate, useGenerator } from './composables/useGenerator'
 import { useSound } from './composables/useSound'
-import { getDailyPuzzle, dailySolvedToday, markDailySolved, todayUTC } from './composables/useDaily'
+import { getDailyPuzzle, preGenerateDaily, dailySolvedToday, markDailySolved, todayUTC } from './composables/useDaily'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -28,10 +28,17 @@ const showStats   = ref(false)
 const showHelp    = ref(false)
 
 // ── Daily puzzle ──────────────────────────────────────────────────────────────
-function onDaily() {
-  const puzzle = getDailyPuzzle()
-  if (!puzzle) return               // generation failed — button stays available
-  game.initBoard(puzzle)
+const isDailyLoading = ref(false)
+
+async function onDaily() {
+  if (isDailyLoading.value || dailySolvedToday.value) return
+  isDailyLoading.value = true
+  try {
+    const puzzle = await getDailyPuzzle()
+    if (puzzle) game.initBoard(puzzle)
+  } finally {
+    isDailyLoading.value = false
+  }
 }
 
 // When the player finishes ANY puzzle, check if it was today's daily
@@ -99,6 +106,8 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibility)
   // Warm up the generator for the player's current level/size
   preGenerate(progression.currentSize)
+  // Pre-generate today's daily puzzle in the background
+  preGenerateDaily()
   // The store boots with puzzles[0] (a 4×4). If the player has levelled past
   // that, swap in a size-appropriate puzzle so they aren't stuck on the wrong
   // grid — bundled match preferred, generated fallback otherwise.
@@ -132,9 +141,10 @@ onUnmounted(() => {
       <button
         class="hud-action-btn"
         :class="{ 'hud-action-btn--daily-done': dailySolvedToday }"
-        :title="dailySolvedToday ? 'Daily puzzle solved ✓' : 'Play today\'s daily puzzle'"
+        :disabled="isDailyLoading"
+        :title="dailySolvedToday ? 'Daily puzzle solved ✓' : isDailyLoading ? 'Generating…' : 'Play today\'s daily puzzle'"
         @click="onDaily"
-      >{{ dailySolvedToday ? '✅' : '📅' }}</button>
+      >{{ dailySolvedToday ? '✅' : isDailyLoading ? '⏳' : '📅' }}</button>
       <button class="hud-action-btn" @click="showStats = true">📊 Stats</button>
       <button class="hud-action-btn" :aria-label="muted ? 'Unmute sounds' : 'Mute sounds'" @click="toggleMute">
         {{ muted ? '🔇' : '🔊' }}
