@@ -5,6 +5,8 @@ export type GeneratorStatus = 'idle' | 'generating' | 'done' | 'failed'
 
 // Generation now strictly requires pure-logic puzzles (difficulty === 0).
 // Budgets sized for ~95 % success rate based on empirical pure-rate per size.
+// 12×12 was removed from progression (see types/progression.ts) — the SA
+// generator cannot find unique 12×12 puzzles in any practical budget.
 const TIME_LIMITS: Record<number, number> = {
   4:   3_000,
   5:   5_000,
@@ -12,7 +14,6 @@ const TIME_LIMITS: Record<number, number> = {
   7:  20_000,
   8:  30_000,
   10: 60_000,
-  12: 120_000,
 }
 
 // ── Module-level background pre-generation singleton ───────────────────────

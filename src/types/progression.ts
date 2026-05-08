@@ -42,6 +42,11 @@ export interface PersistedProgression {
  * 5×5, …). Hints cost XP, so a hint-heavy solve can leave you below the
  * previous threshold and drop you a level.
  */
+// NOTE: 12×12 was removed (level 7, size 12) — the SA generator can't
+// reliably produce a unique 12×12 puzzle within any practical time budget
+// (0/12 successes over 12 min in scripts/gen-bundled.ts retry runs). Players
+// would hit "Generation timed out" reliably at that level. Capping at 10×10
+// until the generator is improved. See git log for the failed attempts.
 const LEVEL_TIERS: Array<{ level: number; size: number; reward: number; winsToAdvance: number }> = [
   { level: 1, size: 4,  reward: 10,  winsToAdvance: 4  },
   { level: 2, size: 5,  reward: 25,  winsToAdvance: 5  },
@@ -49,7 +54,6 @@ const LEVEL_TIERS: Array<{ level: number; size: number; reward: number; winsToAd
   { level: 4, size: 7,  reward: 100, winsToAdvance: 7  },
   { level: 5, size: 8,  reward: 175, winsToAdvance: 8  },
   { level: 6, size: 10, reward: 350, winsToAdvance: 10 },
-  { level: 7, size: 12, reward: 600, winsToAdvance: 12 },
 ]
 
 /** Cumulative XP required to *reach* level L (so L1 = 0). */

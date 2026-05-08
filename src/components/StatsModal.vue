@@ -8,7 +8,7 @@ const emit = defineEmits<{ close: [] }>()
 const progression = useProgressionStore()
 const { level, currentSize, perSize, totalSolved, totalHints, totalTimeMs, currentStreak, bestStreak } = storeToRefs(progression)
 
-const ALL_SIZES = [4, 5, 6, 7, 8, 10, 12] as const
+const ALL_SIZES = [4, 5, 6, 7, 8, 10] as const
 
 function formatTime(ms: number): string {
   const totalSec = Math.max(0, Math.floor(ms / 1000))

@@ -165,15 +165,48 @@ export function generatePuzzle(n: number, deadline: number): Puzzle | null {
   }
 
   // ── Phase 2: SA repair ──
+  //
+  // Two key improvements over a naïve iteration-based schedule:
+  //
+  // 1. TIME-BASED ANNEALING — temperature is driven by elapsed fraction of the
+  //    time budget rather than iteration count.  solve() is sub-millisecond, so
+  //    the SA accumulates millions of iterations per minute; an iteration-based
+  //    cooling factor (e.g. 0.9997) freezes the SA after ~19 k iterations,
+  //    leaving 97 % of the budget in greedy-only mode.  Time-based annealing
+  //    keeps T exploratory for the full duration, independent of hardware speed.
+  //
+  // 2. HIGH-CAP ENERGY FUNCTION — solve() is called with cap=50, giving 50
+  //    distinct energy levels (one per extra solution) instead of 3 (0/2/3+).
+  //    Random 10×10 and 12×12 grids always have 20+ solutions, so with cap=3
+  //    every starting state has the same energy — the SA has zero gradient
+  //    to follow.  Cap=50 costs the same time (solve() ≈ 0.02 ms at all caps)
+  //    and provides real signal to guide boundary moves toward fewer solutions.
+  const SOL_CAP    = 50          // energy levels: 0 (unique) … 490 (50+ sols)
+  const T_INIT     = 30
+  const T_FINAL    = 0.05        // cold enough to be nearly greedy at deadline
+
   const solution = findRandomSolution(n)
   if (!solution) return null
   const gridBase = growRegions(n, solution)
   if (!gridBase) return null
 
-  const grid   = gridBase.map(r => [...r])
-  const counts = regionSizes(n, grid)
-  let T = 30
-  let energy = solve(stub(n, grid), 3).length * 20
+  const grid      = gridBase.map(r => [...r])
+  const counts    = regionSizes(n, grid)
+  const phaseStart = Date.now()
+  const phaseBudget = Math.max(deadline - phaseStart, 1)
+
+  // energy = (nSols - 1) * 10, with 0 = unique and a large penalty for
+  // impossible puzzles (nSols=0 should never occur since the seed solution
+  // is preserved, but defend against it anyway).
+  function energy(nSols: number): number {
+    if (nSols === 0) return 100_000   // impossible — strongly rejected
+    if (nSols === 1) return 0         // unique — done
+    return (nSols - 1) * 10
+  }
+
+  let e = energy(solve(stub(n, grid), SOL_CAP).length)
+  if (e === 0)
+    return { id: `gen-${n}-${Date.now()}`, title: `${n}×${n}`, n, grid: grid.map(r => [...r]) }
 
   while (Date.now() < deadline) {
     const moves = boundaryMoves(n, grid, solution, counts, minSize, maxSize)
@@ -187,19 +220,20 @@ export function generatePuzzle(n: number, deadline: number): Puzzle | null {
     grid[r][c] = newRid
     counts[oldRid]--; counts[newRid]++
 
-    const nSols   = solve(stub(n, grid), 3).length
-    const newEnergy = nSols === 1 ? 0 : nSols * 20
-    const delta   = newEnergy - energy
+    const newE  = energy(solve(stub(n, grid), SOL_CAP).length)
+    const delta = newE - e
 
-    if (delta <= 0 || Math.random() < Math.exp(-delta / Math.max(T, 0.1))) {
-      energy = newEnergy
-      if (energy === 0)
+    // Time-based temperature: drops T_INIT → T_FINAL over the full budget.
+    const frac = (Date.now() - phaseStart) / phaseBudget
+    const T    = T_INIT * Math.pow(T_FINAL / T_INIT, frac)
+
+    if (delta <= 0 || Math.random() < Math.exp(-delta / T)) {
+      e = newE
+      if (e === 0)
         return { id: `gen-${n}-${Date.now()}`, title: `${n}×${n}`, n, grid: grid.map(r => [...r]) }
     } else {
       grid[r][c] = oldRid; counts[oldRid]++; counts[newRid]--
     }
-
-    T *= 0.9997
   }
 
   return null
