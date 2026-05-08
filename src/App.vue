@@ -25,7 +25,12 @@ const isGenerating = computed(() => genStatus.value === 'generating')
 const { darkMode, toggleDark } = useDarkMode()
 const { muted, toggleMute } = useSound()
 const showStats   = ref(false)
-const showHelp    = ref(false)
+// Auto-open the help modal on the very first visit so new players see the
+// rules without having to discover the ❓ button themselves.
+const HELP_SEEN_KEY = 'star-battle/help-seen'
+const showHelp = ref(!localStorage.getItem(HELP_SEEN_KEY))
+function openHelp()  { showHelp.value = true;  localStorage.setItem(HELP_SEEN_KEY, '1') }
+function closeHelp() { showHelp.value = false; localStorage.setItem(HELP_SEEN_KEY, '1') }
 
 // ── Daily puzzle ──────────────────────────────────────────────────────────────
 const isDailyLoading = ref(false)
@@ -77,12 +82,12 @@ async function onNext() {
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
-    if (showHelp.value)  { showHelp.value  = false; return }
+    if (showHelp.value)  { closeHelp(); return }
     if (showStats.value) { showStats.value = false; return }
     game.clearHint()
     return
   }
-  if (e.key === '?') { showHelp.value = true; return }
+  if (e.key === '?') { openHelp(); return }
   const mod = e.ctrlKey || e.metaKey
   if (!mod) return
   if (e.key === 'z') {
@@ -143,7 +148,7 @@ onUnmounted(() => {
     <LevelHud />
 
     <div class="hud-actions">
-      <button class="hud-action-btn" aria-label="How to play" @click="showHelp = true">❓</button>
+      <button class="hud-action-btn" aria-label="How to play" @click="openHelp">❓</button>
       <button
         class="hud-action-btn"
         :class="{ 'hud-action-btn--daily-done': dailySolvedToday }"
@@ -167,7 +172,7 @@ onUnmounted(() => {
     <HintBox />
 
     <StatsModal v-if="showStats" @close="showStats = false" />
-    <HowToPlay  v-if="showHelp"  @close="showHelp  = false" />
+    <HowToPlay v-if="showHelp" @close="closeHelp" />
 
     <footer class="app-footer">
       <button v-if="!isSolved" class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
