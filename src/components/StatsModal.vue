@@ -6,7 +6,7 @@ import { useProgressionStore } from '../stores/progression'
 const emit = defineEmits<{ close: [] }>()
 
 const progression = useProgressionStore()
-const { level, maxN, perSize, totalSolved, totalHints, totalTimeMs, currentStreak, bestStreak } = storeToRefs(progression)
+const { level, currentSize, perSize, totalSolved, totalHints, totalTimeMs, currentStreak, bestStreak } = storeToRefs(progression)
 
 const ALL_SIZES = [4, 5, 6, 7, 8, 10, 12] as const
 
@@ -33,7 +33,7 @@ function formatLong(ms: number): string {
 const rows = computed(() =>
   ALL_SIZES.map(n => {
     const stats = perSize.value[n]
-    const locked = n > maxN.value
+    const locked = n > currentSize.value
     const solved = stats?.solved ?? 0
     const bestTimeMs = stats?.bestTimeMs ?? null
     const totalTimeForSize = stats?.totalTimeMs ?? 0

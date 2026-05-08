@@ -76,8 +76,6 @@ export const useProgressionStore = defineStore('progression', () => {
   const xpToNextLevel     = computed(() => xpAtNextLevel.value - xp.value)
   /** Grid size to play right now — derived from level, no player choice. */
   const currentSize       = computed(() => sizeForLevel(level.value))
-  /** Backwards-compat alias (some components still reference maxN). */
-  const maxN              = currentSize
   /** True when the player has reached the highest available level. */
   const isMaxLevel        = computed(() => level.value >= MAX_LEVEL)
   /**
@@ -247,7 +245,7 @@ export const useProgressionStore = defineStore('progression', () => {
     currentStreak, bestStreak, lastHintDebit,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
-    currentSize, maxN, isMaxLevel, winsToNextLevel, nextHintCost,
+    currentSize, isMaxLevel, winsToNextLevel, nextHintCost,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,
     awardSolve, clearCurrent, reset,
