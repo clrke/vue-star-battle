@@ -41,7 +41,8 @@ const variantClass = computed(() => {
     case 'squeeze-cols':
     case 'fish-cols':
     case 'fish-rows':
-    case 'lookahead-mark':     return 'hint--mark'
+    case 'lookahead-mark':
+    case 'deep-lookahead-mark': return 'hint--mark'
     case 'fallback':           return 'hint--fallback'
     case 'wrong-mark':
     case 'wrong-star':

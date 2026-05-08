@@ -34,7 +34,12 @@ import { getSolution } from './solver'
                                  unplaced region/row/col → mark C
      15. LOOKAHEAD-DOUBLE      — hypothetical star at C forces two unplaced
                                  regions to share a single row/col → mark C
-     16. FALLBACK              — reveal a cell from the unique solution
+     16. DEEP-LOOKAHEAD-MARK   — hypothetical star at C, followed by a chain
+                                 of forced-region/row/col moves, eventually
+                                 leaves some region/row/col with zero
+                                 candidates → mark C (process-of-elimination
+                                 fallback before revealing the answer)
+     17. FALLBACK              — reveal a cell from the unique solution
    ========================================================================== */
 
 export type HintCategory =
@@ -65,6 +70,7 @@ export type HintCategory =
   | 'fish-cols'              // 3 columns confined to the same 3 rows → eliminate other cols in those rows
   | 'fish-rows'              // 3 rows confined to the same 3 cols → eliminate other rows in those cols
   | 'lookahead-mark'         // hypothetical "what if this were a star" leaves another region/row/col empty → can't be a star
+  | 'deep-lookahead-mark'    // hypothetical star + chain of forced moves eventually leaves some region/row/col empty → can't be a star
   | 'wrong-mark'             // user marked a cell that's actually a star in the unique solution
   | 'wrong-star'             // user placed a star at a cell that's not in the unique solution
   | 'fallback'
@@ -1676,6 +1682,219 @@ function findLookaheadDoubleConfinementHint(
   return null
 }
 
+// ── Deep lookahead (multi-step forced-move propagation) ────────────────────
+
+/**
+ * Mutate `mask` and `placed` to reflect a star being placed at (r, c):
+ *   - mark the row, column, region, and 8-adjacent cells as ineligible
+ *   - record the row/col/region as already-placed
+ */
+function placeStarOnMask(
+  puzzle: Puzzle,
+  mask: boolean[][],
+  placed: { rows: Set<number>; cols: Set<number>; regions: Set<number> },
+  r: number,
+  c: number,
+): void {
+  const { n, grid } = puzzle
+  const rid = grid[r][c]
+  placed.rows.add(r)
+  placed.cols.add(c)
+  placed.regions.add(rid)
+  for (let i = 0; i < n; i++) {
+    mask[r][i] = false
+    mask[i][c] = false
+  }
+  for (let rr = 0; rr < n; rr++)
+    for (let cc = 0; cc < n; cc++)
+      if (grid[rr][cc] === rid) mask[rr][cc] = false
+  for (let dr = -1; dr <= 1; dr++)
+    for (let dc = -1; dc <= 1; dc++) {
+      const nr = r + dr, nc = c + dc
+      if (nr >= 0 && nr < n && nc >= 0 && nc < n) mask[nr][nc] = false
+    }
+}
+
+type PropagateFailure = { kind: 'region' | 'row' | 'col'; idx: number }
+type PropagateResult = {
+  ok: boolean
+  /** Stars placed during propagation, in the order they were forced. */
+  chain: Array<[number, number]>
+  /** Set when ok===false: the entity that ran out of candidates. */
+  failure?: PropagateFailure
+}
+
+/**
+ * Repeatedly apply forced-region / forced-row / forced-column rules to a
+ * hypothetical (mask, placed) pair, mutating both in place. Stops when no
+ * more progress can be made, or returns early with `ok: false` the first
+ * time some unplaced region/row/col is left with zero candidates.
+ *
+ * Used by the deep-lookahead hint to detect when a hypothetical star at a
+ * cell C leads — via a chain of single-candidate forcings — to a position
+ * that cannot be completed. That chain is the "process of elimination"
+ * proof the player can replay.
+ */
+function propagateForced(
+  puzzle: Puzzle,
+  mask: boolean[][],
+  placed: { rows: Set<number>; cols: Set<number>; regions: Set<number> },
+): PropagateResult {
+  const { n } = puzzle
+  const chain: Array<[number, number]> = []
+  let changed = true
+
+  while (changed) {
+    changed = false
+
+    // Forced region
+    for (let rid = 0; rid < n; rid++) {
+      if (placed.regions.has(rid)) continue
+      const cells = eligibleInRegion(puzzle, mask, rid)
+      if (cells.length === 0) return { ok: false, chain, failure: { kind: 'region', idx: rid } }
+      if (cells.length === 1) {
+        const [r, c] = cells[0]
+        placeStarOnMask(puzzle, mask, placed, r, c)
+        chain.push([r, c])
+        changed = true
+      }
+    }
+
+    // Forced row
+    for (let r = 0; r < n; r++) {
+      if (placed.rows.has(r)) continue
+      const cells = eligibleInRow(mask, r)
+      if (cells.length === 0) return { ok: false, chain, failure: { kind: 'row', idx: r } }
+      if (cells.length === 1) {
+        const [, c] = cells[0]
+        placeStarOnMask(puzzle, mask, placed, r, c)
+        chain.push([r, c])
+        changed = true
+      }
+    }
+
+    // Forced column
+    for (let c = 0; c < n; c++) {
+      if (placed.cols.has(c)) continue
+      const cells = eligibleInCol(mask, c)
+      if (cells.length === 0) return { ok: false, chain, failure: { kind: 'col', idx: c } }
+      if (cells.length === 1) {
+        const [r] = cells[0]
+        placeStarOnMask(puzzle, mask, placed, r, c)
+        chain.push([r, c])
+        changed = true
+      }
+    }
+  }
+
+  return { ok: true, chain }
+}
+
+/**
+ * Process-of-elimination fallback. For every still-eligible empty cell C:
+ *   1. Hypothetically place a star at C
+ *   2. Repeatedly apply forced-region/row/col until either:
+ *        - some region/row/col has zero candidates → contradiction, mark C
+ *        - propagation stabilises with no contradiction → not useful here
+ *
+ * Returns the candidate with the **shortest forcing chain** (kindest to the
+ * player to replay mentally). This sits between the cheap one-step lookaheads
+ * and the solver-reveal fallback, giving the player one more chance to find
+ * their move by pure logic before any answer is spoiled.
+ */
+function findDeepLookaheadMarkHint(
+  puzzle: Puzzle,
+  state: DisplayCellState[][],
+  mask: boolean[][],
+  placed: ReturnType<typeof placedSets>,
+): Hint | null {
+  const { n } = puzzle
+
+  type Best = {
+    cell: [number, number]
+    chain: Array<[number, number]>     // includes the hypothetical at index 0
+    failure: PropagateFailure
+  }
+  let best: Best | null = null
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      if (!mask[r][c]) continue
+      if (state[r][c] !== 'empty') continue
+
+      // Snapshot mask + placed sets for this hypothetical
+      const hypMask = mask.map(row => row.slice())
+      const hypPlaced = {
+        rows: new Set(placed.rows),
+        cols: new Set(placed.cols),
+        regions: new Set(placed.regions),
+      }
+
+      placeStarOnMask(puzzle, hypMask, hypPlaced, r, c)
+      const result = propagateForced(puzzle, hypMask, hypPlaced)
+
+      if (!result.ok) {
+        const fullChain: Array<[number, number]> = [[r, c], ...result.chain]
+        if (best === null || fullChain.length < best.chain.length) {
+          best = { cell: [r, c], chain: fullChain, failure: result.failure! }
+        }
+      }
+    }
+  }
+
+  if (!best) return null
+
+  const [r, c] = best.cell
+  const forced = best.chain.slice(1)   // forced moves after the hypothetical
+  const { failure } = best
+
+  const failureHighlight: HintHighlight =
+    failure.kind === 'region' ? { regions: [failure.idx] } :
+    failure.kind === 'row'    ? { rows: [failure.idx] } :
+                                { cols: [failure.idx] }
+  const failureName =
+    failure.kind === 'region' ? `region` :
+    failure.kind === 'row'    ? `row ${ord(failure.idx)}` :
+                                `column ${ord(failure.idx)}`
+
+  const steps: HintStep[] = [
+    step(
+      `Try this: suppose you placed a star at row ${ord(r)}, column ${ord(c)}.`,
+      { primaryCell: [r, c] },
+    ),
+  ]
+
+  if (forced.length === 1) {
+    const [fr, fc] = forced[0]
+    steps.push(step(
+      `That would force another star at row ${ord(fr)}, column ${ord(fc)} — the only remaining candidate in its region/row/column.`,
+      { primaryCell: [r, c], cells: forced },
+    ))
+  } else if (forced.length > 1) {
+    steps.push(step(
+      `That would force a chain of ${forced.length} more stars — each the last remaining candidate in its region, row, or column.`,
+      { primaryCell: [r, c], cells: forced },
+    ))
+  }
+
+  steps.push(step(
+    `But then the highlighted ${failureName} would have no candidates left for its star — a contradiction. So row ${ord(r)}, column ${ord(c)} can't hold a star. Mark it.`,
+    { primaryCell: [r, c], cells: forced, ...failureHighlight },
+  ))
+
+  return {
+    category: 'deep-lookahead-mark',
+    cell: [r, c],
+    action: 'place-mark',
+    label: 'Process of elimination',
+    reason:
+      forced.length === 0
+        ? `Placing a star at row ${ord(r)}, column ${ord(c)} would immediately leave the highlighted ${failureName} with no candidates. Mark this cell.`
+        : `Placing a star at row ${ord(r)}, column ${ord(c)} forces ${forced.length} more star${forced.length === 1 ? '' : 's'}, ending in a contradiction. Mark this cell.`,
+    steps,
+  }
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
@@ -1987,6 +2206,14 @@ export function deriveHint(puzzle: Puzzle, state: DisplayCellState[][]): Hint {
   // row or column.
   const doubleConfine = findLookaheadDoubleConfinementHint(puzzle, state, mask, placed)
   if (doubleConfine) return doubleConfine
+
+  // ── 10.7 Deep-lookahead mark — process of elimination ────────────────────
+  // For each candidate C, hypothetically place a star and then propagate
+  // forced-region/row/col rules. If that chain ever leaves some region,
+  // row, or column with zero candidates, C must be a mark. This is the
+  // last logical fallback before revealing the answer.
+  const deep = findDeepLookaheadMarkHint(puzzle, state, mask, placed)
+  if (deep) return deep
 
   // ── 11. Fallback: no single-step logical rule fires ──────────────────────
   // Instead of a generic message, find the most-constrained unplaced

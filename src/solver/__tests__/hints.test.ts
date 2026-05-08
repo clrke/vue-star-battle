@@ -73,7 +73,7 @@ const VALID_CATEGORIES = new Set<HintCategory>([
   'triple-rows', 'triple-cols', 'triple-regions-rows', 'triple-regions-cols',
   'common-neighbor-region', 'common-neighbor-row', 'common-neighbor-col',
   'squeeze-rows', 'squeeze-cols', 'fish-cols', 'fish-rows',
-  'lookahead-mark',
+  'lookahead-mark', 'deep-lookahead-mark',
   'wrong-mark', 'wrong-star',
   'fallback', 'contradiction', 'already-solved',
 ])
@@ -600,6 +600,47 @@ describe('deriveHint — structural invariants', () => {
       state[sr][sc] = 'marked'                     // wrong mark on solution cell
       const hint = deriveHint(puzzle, state)
       expect(hint.category).toBe('wrong-star')     // star fires first
+    })
+
+    it('deep-lookahead-mark, when it fires, never points at a solution cell', () => {
+      // Drive the engine from empty board to solved on every bundled puzzle,
+      // and assert the new deep-lookahead-mark hint is sound: any cell it
+      // tells the player to mark must NOT be a solution cell. If it pointed
+      // at a solution cell the player would be misled, since deep-lookahead
+      // claims that cell can't hold a star.
+      for (const puzzle of puzzles) {
+        const solution = getSolution(puzzle)!
+        const solSet = new Set(solution.map(([r, c]) => `${r},${c}`))
+        const state = emptyState(puzzle.n)
+        let firedAtLeastOnce = false
+
+        const MAX_ITER = puzzle.n * puzzle.n * 4
+        for (let iter = 0; iter < MAX_ITER; iter++) {
+          const display = applyAutoMarks(puzzle, state)
+          const hint = deriveHint(puzzle, display)
+          if (hint.category === 'already-solved') break
+          if (hint.action === 'none' || hint.cell === null) break
+
+          if (hint.category === 'deep-lookahead-mark') {
+            firedAtLeastOnce = true
+            assertHintInvariants(hint, puzzle, display, `${puzzle.id} deep-lookahead`)
+            const [r, c] = hint.cell
+            expect(hint.action).toBe('place-mark')
+            expect(display[r][c]).toBe('empty')
+            expect(solSet.has(`${r},${c}`),
+              `${puzzle.id}: deep-lookahead must not target solution cell (${r},${c})`).toBe(false)
+          }
+
+          const [r, c] = hint.cell
+          if (hint.action === 'place-star' && state[r][c] === 'empty') state[r][c] = 'star'
+          else if (hint.action === 'place-mark' && state[r][c] === 'empty') state[r][c] = 'marked'
+          else break
+        }
+        // If it never fired during this puzzle's auto-play, that's fine — the
+        // simpler rules subsumed all positions. We only assert soundness when
+        // it does fire. (Touching `firedAtLeastOnce` keeps the lint happy.)
+        void firedAtLeastOnce
+      }
     })
 
     it('correct stars + correct marks do NOT trigger wrong-* hints', () => {
