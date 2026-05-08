@@ -296,7 +296,10 @@ onUnmounted(() => {
 
 .cell__symbol--star { color: var(--amber); }
 
-/* User-placed mark — solid round dot, 35 % of cell width */
+/* User-placed mark — solid round dot, 23% of cell width.
+   Dots always sit on pastel region backgrounds (same hue in both light and
+   dark mode), so we use a fixed dark-semi-transparent colour rather than
+   --text (which turns near-white in dark mode and becomes invisible). */
 .cell__dot {
   display: block;
   border-radius: 50%;
@@ -305,14 +308,13 @@ onUnmounted(() => {
 .cell__dot--user {
   width: 23%;
   height: 23%;
-  background: var(--text);
+  background: rgba(26, 26, 46, 0.62);
 }
-/* Derived auto-mark — same opacity as user dot, just smaller and greyer
-   to signal "locked / computed". */
+/* Derived auto-mark — subtler than the user dot to signal "computed". */
 .cell__dot--auto {
   width: 16%;
   height: 16%;
-  background: var(--text-muted);
+  background: rgba(26, 26, 46, 0.32);
 }
 
 /* Auto-marks are locked: dim them and skip the hover/active feedback */

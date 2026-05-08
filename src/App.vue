@@ -243,8 +243,6 @@ onUnmounted(() => {
   opacity: 0.9;
   transition: color 200ms ease;
 }
-.hint-xp--pos  { color: #27ae60; }
-.hint-xp--zero { color: var(--text-muted); }
 .hint-xp--neg  { color: var(--red); }
 
 /* Solved-state CTA: replaces Hint with a prominent green Next button. */

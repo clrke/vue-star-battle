@@ -92,10 +92,6 @@ export const useProgressionStore = defineStore('progression', () => {
    * Decreases with each hint used; can go negative (level-down territory).
    * Null when there is no puzzle in progress.
    */
-  const potentialXp       = computed(() => {
-    if (!current.value) return null
-    return xpForSolve(current.value.puzzle.n)
-  })
   /** Cost in XP of the *next* hint for the current puzzle size. */
   const nextHintCost      = computed(() => hintCostForSize(currentSize.value))
 
@@ -120,7 +116,8 @@ export const useProgressionStore = defineStore('progression', () => {
   // Debounced auto-save on any change
   let saveTimer: ReturnType<typeof setTimeout> | null = null
   watch(
-    () => [xp.value, totalSolved.value, totalHints.value, totalTimeMs.value, perSize.value, current.value],
+    () => [xp.value, totalSolved.value, totalHints.value, totalTimeMs.value,
+           perSize.value, current.value, currentStreak.value, bestStreak.value],
     () => {
       if (saveTimer) clearTimeout(saveTimer)
       saveTimer = setTimeout(persist, 250)
@@ -250,7 +247,7 @@ export const useProgressionStore = defineStore('progression', () => {
     currentStreak, bestStreak, lastHintDebit,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
-    currentSize, maxN, isMaxLevel, winsToNextLevel, potentialXp, nextHintCost,
+    currentSize, maxN, isMaxLevel, winsToNextLevel, nextHintCost,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,
     awardSolve, clearCurrent, reset,
