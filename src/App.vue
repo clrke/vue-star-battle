@@ -43,8 +43,22 @@ const hintXpClass = computed(() => {
 
 async function onNext() {
   if (isGenerating.value) return
+  const n = progression.currentSize
+
+  // Rotate through bundled puzzles before switching to the generator.
+  // `perSize[n].solved` counts total solves at this size, so the first
+  // K solves use bundled[0..K-1] in order; after that we generate.
+  // This ensures every hand-authored puzzle is actually seen by the player.
+  const bundledForSize = puzzles.filter(p => p.n === n)
+  const solvedAtSize   = progression.perSize[n]?.solved ?? 0
+  if (solvedAtSize < bundledForSize.length) {
+    game.initBoard(bundledForSize[solvedAtSize])
+    preGenerate(n)   // warm cache so Next after the last bundled is instant
+    return
+  }
+
   try {
-    const puzzle = await generate(progression.currentSize)
+    const puzzle = await generate(n)
     game.initBoard(puzzle)
   } catch { /* failure surfaces via genStatus; user can re-click */ }
 }
