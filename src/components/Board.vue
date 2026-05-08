@@ -14,6 +14,10 @@ const {
   currentPuzzle, displayCellStates, violations, isSolved,
   hintCell, lastHint, starCount, lastSolve, currentHintStep,
 } = storeToRefs(game)
+const { currentSize, perSize } = storeToRefs(progression)
+
+// Personal best for the current grid size — shown as a live target while solving.
+const bestTimeMs = computed(() => perSize.value[currentSize.value]?.bestTimeMs ?? null)
 
 // ── Highlight sets from the current hint step ────────────────────────────
 const hintRows    = computed(() => new Set(currentHintStep.value?.highlight.rows    ?? []))
@@ -193,6 +197,11 @@ function onToggleMark(r: number, c: number) {
         />
       </div>
       <span class="progress-label">{{ starCount }} / {{ n }} ★</span>
+      <span
+        v-if="bestTimeMs !== null && !isSolved"
+        class="progress-best"
+        title="Your personal best for this grid size"
+      >🏆 {{ formatTime(bestTimeMs) }}</span>
     </div>
 
     <!-- Grid -->
@@ -306,6 +315,15 @@ function onToggleMark(r: number, c: number) {
   font-variant-numeric: tabular-nums;
   min-width: 5ch;
   transition: color 400ms ease;
+}
+
+.progress-best {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .progress--done .progress-label,
