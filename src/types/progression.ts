@@ -6,6 +6,8 @@ export interface SavedPuzzle {
   hintsUsed: number
   startedAt: number          // ms epoch
   accumulatedMs: number      // active play time, paused on tab hide
+  /** Player's level when the puzzle was started — for net level-change detection. */
+  levelAtStart?: number
 }
 
 export interface PerSizeStats {

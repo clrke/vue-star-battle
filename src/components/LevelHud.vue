@@ -9,7 +9,7 @@ const game        = useGameStore()
 const {
   level, xp, xpIntoLevel, xpForLevelSpan, xpToNextLevel, currentSize,
   totalSolved, totalHints, totalTimeMs, isMaxLevel, winsToNextLevel,
-  currentStreak, bestStreak,
+  currentStreak, bestStreak, lastHintDebit,
 } = storeToRefs(progression)
 const { lastSolve } = storeToRefs(game)
 
@@ -18,6 +18,17 @@ const recentGain = ref<number | null>(null)
 const recentLevelUp = ref(false)
 const recentLevelDown = ref(false)
 let gainTimer: ReturnType<typeof setTimeout> | null = null
+
+// Hint debit toast — brief flash of the cost deducted
+const recentHintCost = ref<number | null>(null)
+let hintToastTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(lastHintDebit, (d) => {
+  if (!d) return
+  recentHintCost.value = d.cost
+  if (hintToastTimer) clearTimeout(hintToastTimer)
+  hintToastTimer = setTimeout(() => { recentHintCost.value = null }, 1200)
+})
 
 watch(lastSolve, (s) => {
   if (!s) return
@@ -85,6 +96,12 @@ function formatTime(ms: number) {
           <div><dt>Clean streak</dt><dd>🔥 {{ currentStreak }}</dd></div>
           <div><dt>Best streak</dt><dd>🔥 {{ bestStreak }}</dd></div>
         </dl>
+      </div>
+    </Transition>
+
+    <Transition name="hint-fade">
+      <div v-if="recentHintCost !== null" class="hint-toast" aria-live="polite">
+        −{{ recentHintCost }} XP
       </div>
     </Transition>
 
@@ -256,4 +273,21 @@ function formatTime(ms: number) {
 .float-up-leave-active { transition: all 0.3s ease; }
 .float-up-enter-from   { opacity: 0; transform: translateY(-30%); }
 .float-up-leave-to     { opacity: 0; transform: translateY(-80%); }
+
+/* Hint debit toast — small red flash next to the XP bar */
+.hint-toast {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--red, #e74c3c);
+  pointer-events: none;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.hint-fade-enter-active { transition: all 0.15s ease; }
+.hint-fade-leave-active { transition: all 0.9s ease; }
+.hint-fade-enter-from   { opacity: 0; transform: translate(-50%, -60%); }
+.hint-fade-leave-to     { opacity: 0; transform: translate(-50%, -80%); }
 </style>

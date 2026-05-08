@@ -56,6 +56,11 @@ export const useProgressionStore = defineStore('progression', () => {
   const currentStreak = ref(initial.currentStreak ?? 0)
   const bestStreak    = ref(initial.bestStreak    ?? 0)
 
+  // Ephemeral signal for UI toasts — not persisted.
+  // Each hint debit increments `seq` so watchers fire even for same cost.
+  const lastHintDebit = ref<{ cost: number; seq: number } | null>(null)
+  let hintDebitSeq = 0
+
   // Treat the gap between save and reload as a pause: the saved
   // accumulatedMs already covers all real play time, so we reset
   // startedAt to "now" rather than counting the page-closed window.
@@ -137,6 +142,7 @@ export const useProgressionStore = defineStore('progression', () => {
       hintsUsed: 0,
       startedAt: Date.now(),
       accumulatedMs: 0,
+      levelAtStart: level.value,   // used in awardSolve to detect net level change
     }
   }
 
@@ -154,6 +160,7 @@ export const useProgressionStore = defineStore('progression', () => {
     // Floor at 0 so they can't go negative — this is the soft cap.
     const cost = hintCostForSize(current.value.puzzle.n)
     xp.value = Math.max(0, xp.value - cost)
+    lastHintDebit.value = { cost, seq: ++hintDebitSeq }
   }
 
   /** Active play time in this session (excludes time since startedAt while paused). */
@@ -174,14 +181,16 @@ export const useProgressionStore = defineStore('progression', () => {
   function awardSolve(): { gained: number; level: number; leveledUp: boolean; leveledDown: boolean; elapsedMs: number; isPersonalBest: boolean; streak: number } {
     if (!current.value) return { gained: 0, level: level.value, leveledUp: false, leveledDown: false, elapsedMs: 0, isPersonalBest: false, streak: 0 }
 
-    const n          = current.value.puzzle.n
-    const elapsedMs  = getElapsedMs()
-    const hintsUsed  = current.value.hintsUsed
+    const n             = current.value.puzzle.n
+    const elapsedMs     = getElapsedMs()
+    const hintsUsed     = current.value.hintsUsed
+    // Level at puzzle *start* — for detecting net level change across the whole
+    // puzzle (hints may have already dropped the level mid-puzzle).
+    const levelAtStart  = current.value.levelAtStart ?? level.value
+
     // Hint costs were already debited in recordHintUsed(); the solve reward
     // is the clean base XP for the grid size.
     const gained     = xpForSolve(n)
-
-    const prevLevel  = level.value
     // Floor at 0 just in case some other code path subtracts XP later.
     xp.value         = Math.max(0, xp.value + gained)
     totalSolved.value += 1
@@ -210,8 +219,10 @@ export const useProgressionStore = defineStore('progression', () => {
     return {
       gained,
       level:         level.value,
-      leveledUp:     level.value > prevLevel,
-      leveledDown:   level.value < prevLevel,
+      // Compare final level to level at puzzle *start*, not just pre-solve level,
+      // so that hint-induced level-drops that were later recovered are visible.
+      leveledUp:     level.value > levelAtStart,
+      leveledDown:   level.value < levelAtStart,
       elapsedMs,
       isPersonalBest,
       streak:        currentStreak.value,
@@ -236,7 +247,7 @@ export const useProgressionStore = defineStore('progression', () => {
   return {
     // state
     xp, totalSolved, totalHints, totalTimeMs, perSize, current,
-    currentStreak, bestStreak,
+    currentStreak, bestStreak, lastHintDebit,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
     currentSize, maxN, isMaxLevel, winsToNextLevel, potentialXp, nextHintCost,
