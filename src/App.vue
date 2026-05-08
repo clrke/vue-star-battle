@@ -7,6 +7,7 @@ import Board from './components/Board.vue'
 import LevelHud from './components/LevelHud.vue'
 import HintBox from './components/HintBox.vue'
 import StatsModal from './components/StatsModal.vue'
+import HowToPlay from './components/HowToPlay.vue'
 import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
 import { preGenerate, useGenerator } from './composables/useGenerator'
@@ -22,7 +23,8 @@ const isGenerating = computed(() => genStatus.value === 'generating')
 
 const { darkMode, toggleDark } = useDarkMode()
 const { muted, toggleMute } = useSound()
-const showStats = ref(false)
+const showStats   = ref(false)
+const showHelp    = ref(false)
 
 // Hint cost is debited from XP immediately in recordHintUsed(); the badge
 // just shows that flat negative cost so the player knows exactly what
@@ -105,6 +107,7 @@ onUnmounted(() => {
     <LevelHud />
 
     <div class="hud-actions">
+      <button class="hud-action-btn" aria-label="How to play" @click="showHelp = true">❓</button>
       <button class="hud-action-btn" @click="showStats = true">📊 Stats</button>
       <button class="hud-action-btn" :aria-label="muted ? 'Unmute sounds' : 'Mute sounds'" @click="toggleMute">
         {{ muted ? '🔇' : '🔊' }}
@@ -121,6 +124,7 @@ onUnmounted(() => {
     <HintBox />
 
     <StatsModal v-if="showStats" @close="showStats = false" />
+    <HowToPlay  v-if="showHelp"  @close="showHelp  = false" />
 
     <footer class="app-footer">
       <button v-if="!isSolved" class="footer-btn" title="Undo (Ctrl+Z)" :disabled="!canUndo" @click="game.undo()">↩ Undo</button>
