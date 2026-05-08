@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from '../stores/game'
+import { playStarPlace, playMarkPlace } from '../composables/useSound'
 
 const game = useGameStore()
 const {
@@ -70,7 +71,13 @@ const isMultiStep = computed(() => totalHintSteps.value > 1)
 function dismiss() { game.clearHint() }
 function next()    { game.nextHintStep() }
 function prev()    { game.prevHintStep() }
-function apply()   { game.applyHint() }
+function apply() {
+  const action = lastHint.value?.action
+  if (game.applyHint()) {
+    if (action === 'place-star') playStarPlace()
+    else if (action === 'place-mark') playMarkPlace()
+  }
+}
 </script>
 
 <template>
