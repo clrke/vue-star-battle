@@ -18,28 +18,39 @@ function onBackdropClick(e: MouseEvent) {
         <!-- Rule 1 -->
         <div class="rule">
           <div class="rule-text">
-            <strong>One star per row, column, and region.</strong>
-            <p>Each coloured area must contain exactly one star.
-               Every row and every column must also contain exactly one star.</p>
+            <strong>One star per row, column &amp; region.</strong>
+            <p>Each coloured region must contain exactly one star.
+               Every row and every column must also hold exactly one star.</p>
           </div>
-          <!-- 4×4 mini board: valid solution -->
-          <div class="mini-board" style="--n: 4">
-            <div class="mc" style="--r:0;--c:3;--bg:#ffd6d6">★</div>
-            <div class="mc" style="--r:1;--c:1;--bg:#cff5ce">★</div>
-            <div class="mc" style="--r:2;--c:3;--bg:#ddd0ff">★</div>
-            <div class="mc" style="--r:3;--c:0;--bg:#c8e6ff">★</div>
-            <div class="mc" style="--r:0;--c:0;--bg:#ffd6d6" />
-            <div class="mc" style="--r:0;--c:1;--bg:#ffd6d6" />
-            <div class="mc" style="--r:0;--c:2;--bg:#ffd6d6" />
-            <div class="mc" style="--r:1;--c:0;--bg:#cff5ce" />
-            <div class="mc" style="--r:1;--c:2;--bg:#fff5c0" />
-            <div class="mc" style="--r:1;--c:3;--bg:#fff5c0" />
-            <div class="mc" style="--r:2;--c:0;--bg:#c8e6ff" />
-            <div class="mc" style="--r:2;--c:1;--bg:#c8e6ff" />
-            <div class="mc" style="--r:2;--c:2;--bg:#ddd0ff" />
-            <div class="mc" style="--r:3;--c:1;--bg:#c8e6ff" />
-            <div class="mc" style="--r:3;--c:2;--bg:#fff5c0" />
-            <div class="mc" style="--r:3;--c:3;--bg:#fff5c0" />
+          <!--
+            Valid 4×4 solution — regions are 2×2 quadrants:
+              A(rose) top-left · B(sky) top-right
+              C(mint) bottom-left · D(yellow) bottom-right
+            Stars: (0,1)A  (1,3)B  (2,0)C  (3,2)D
+            Rows 0-3: 1 star each ✓   Cols 1,3,0,2: 1 star each ✓
+            No diagonal neighbours ✓
+          -->
+          <div class="mini-board" style="--n:4" aria-hidden="true">
+            <!-- row 0 -->
+            <div class="mc" style="--bg:#ffd6d6"></div>
+            <div class="mc mc--star" style="--bg:#ffd6d6">★</div>
+            <div class="mc" style="--bg:#c8e6ff"></div>
+            <div class="mc" style="--bg:#c8e6ff"></div>
+            <!-- row 1 -->
+            <div class="mc" style="--bg:#ffd6d6"></div>
+            <div class="mc" style="--bg:#ffd6d6"></div>
+            <div class="mc" style="--bg:#c8e6ff"></div>
+            <div class="mc mc--star" style="--bg:#c8e6ff">★</div>
+            <!-- row 2 -->
+            <div class="mc mc--star" style="--bg:#cff5ce">★</div>
+            <div class="mc" style="--bg:#cff5ce"></div>
+            <div class="mc" style="--bg:#fff5c0"></div>
+            <div class="mc" style="--bg:#fff5c0"></div>
+            <!-- row 3 -->
+            <div class="mc" style="--bg:#cff5ce"></div>
+            <div class="mc" style="--bg:#cff5ce"></div>
+            <div class="mc mc--star" style="--bg:#fff5c0">★</div>
+            <div class="mc" style="--bg:#fff5c0"></div>
           </div>
         </div>
 
@@ -48,19 +59,24 @@ function onBackdropClick(e: MouseEvent) {
           <div class="rule-text">
             <strong>Stars may not touch — not even diagonally.</strong>
             <p>No two stars can share an edge or a corner.
-               This includes cells that are diagonal neighbours.</p>
+               Diagonal neighbours are also illegal.</p>
           </div>
-          <!-- 3×3 illustration: two stars that ARE diagonally adjacent (bad) -->
-          <div class="mini-board bad-example" style="--n: 3" title="Invalid — stars are diagonally adjacent">
-            <div class="mc star-bad" style="--r:0;--c:0;--bg:#ffd6d6">★</div>
-            <div class="mc" style="--r:0;--c:1;--bg:#ffd6d6" />
-            <div class="mc" style="--r:0;--c:2;--bg:#cff5ce" />
-            <div class="mc" style="--r:1;--c:0;--bg:#fff5c0" />
-            <div class="mc star-bad" style="--r:1;--c:1;--bg:#fff5c0">★</div>
-            <div class="mc" style="--r:1;--c:2;--bg:#cff5ce" />
-            <div class="mc" style="--r:2;--c:0;--bg:#c8e6ff" />
-            <div class="mc" style="--r:2;--c:1;--bg:#c8e6ff" />
-            <div class="mc" style="--r:2;--c:2;--bg:#c8e6ff" />
+          <!--
+            3×3 bad example: stars at (0,0) and (1,1) are diagonally adjacent.
+          -->
+          <div class="mini-board mini-board--bad" style="--n:3" aria-hidden="true">
+            <!-- row 0 -->
+            <div class="mc mc--star mc--bad" style="--bg:#ffd6d6">★</div>
+            <div class="mc" style="--bg:#ffd6d6"></div>
+            <div class="mc" style="--bg:#c8e6ff"></div>
+            <!-- row 1 -->
+            <div class="mc" style="--bg:#cff5ce"></div>
+            <div class="mc mc--star mc--bad" style="--bg:#cff5ce">★</div>
+            <div class="mc" style="--bg:#c8e6ff"></div>
+            <!-- row 2 -->
+            <div class="mc" style="--bg:#fff5c0"></div>
+            <div class="mc" style="--bg:#fff5c0"></div>
+            <div class="mc" style="--bg:#fff5c0"></div>
           </div>
         </div>
 
@@ -70,9 +86,9 @@ function onBackdropClick(e: MouseEvent) {
           <table class="controls-table">
             <tbody>
               <tr><td class="ctrl-key">Left-click / Space</td><td>Place or remove a ★</td></tr>
-              <tr><td class="ctrl-key">Right-click / D</td><td>Place a dot to mark eliminated cells</td></tr>
-              <tr><td class="ctrl-key">Arrow keys</td><td>Move keyboard cursor</td></tr>
-              <tr><td class="ctrl-key">Ctrl+Z</td><td>Undo last move</td></tr>
+              <tr><td class="ctrl-key">Right-click / D</td><td>Place a dot (mark eliminated cells)</td></tr>
+              <tr><td class="ctrl-key">Arrow keys</td><td>Move the keyboard cursor</td></tr>
+              <tr><td class="ctrl-key">Ctrl+Z</td><td>Undo</td></tr>
               <tr><td class="ctrl-key">Hint button</td><td>Get a logical deduction step (costs XP)</td></tr>
             </tbody>
           </table>
@@ -147,46 +163,45 @@ function onBackdropClick(e: MouseEvent) {
 .rule-text strong { display: block; margin-bottom: 4px; color: var(--text); }
 .rule-text p { margin: 0; color: var(--text-muted); }
 
-/* Mini board */
+/* Mini board — simple auto-flow grid, no CSS-variable positioning tricks */
 .mini-board {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(var(--n), 1fr);
-  grid-template-rows: repeat(var(--n), 1fr);
-  width: calc(var(--n) * 28px);
-  height: calc(var(--n) * 28px);
+  grid-template-columns: repeat(var(--n), 28px);
+  grid-template-rows:    repeat(var(--n), 28px);
   border: 2px solid var(--border-strong);
   border-radius: 3px;
   overflow: hidden;
 }
 .mc {
-  grid-row: calc(var(--r) + 1);
-  grid-column: calc(var(--c) + 1);
-  background: var(--bg);
-  border: 0.5px solid var(--border);
+  width: 28px;
+  height: 28px;
+  background: var(--bg, #eee);
+  border: 0.5px solid rgba(0, 0, 0, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  color: var(--amber);
+  font-size: 14px;
   font-weight: 900;
-  background-color: var(--bg, #fff);
+  color: var(--amber);
+  user-select: none;
 }
-/* Apply region colour via inline --bg custom prop */
-.mc[style*="--bg"] { background: var(--bg); }
+.mc--bad { color: var(--red, #e74c3c); }
 
-.bad-example { position: relative; }
-.star-bad { color: var(--red, #e74c3c); }
-.bad-example::after {
+/* ✕ overlay on the bad example */
+.mini-board--bad {
+  position: relative;
+}
+.mini-board--bad::after {
   content: '✕';
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.5rem;
+  font-size: 3rem;
   font-weight: 900;
-  color: rgba(192, 57, 43, 0.55);
+  color: rgba(192, 57, 43, 0.5);
   pointer-events: none;
 }
 
@@ -201,7 +216,7 @@ function onBackdropClick(e: MouseEvent) {
   margin: 0 0 10px;
 }
 .controls-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-.controls-table td { padding: 4px 0; }
+.controls-table td { padding: 4px 0; vertical-align: top; }
 .ctrl-key {
   font-weight: 700;
   color: var(--text);
@@ -223,7 +238,6 @@ function onBackdropClick(e: MouseEvent) {
 }
 .close-btn:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 
-/* Reuse StatsModal's fade animation */
 .modal-fade-enter-active { transition: all 0.25s cubic-bezier(0.34, 1.4, 0.64, 1); }
 .modal-fade-leave-active { transition: all 0.18s ease; }
 .modal-fade-enter-from   { opacity: 0; transform: scale(0.88); }

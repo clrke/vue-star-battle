@@ -54,7 +54,13 @@ async function onNext() {
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') { game.clearHint(); return }
+  if (e.key === 'Escape') {
+    if (showHelp.value)  { showHelp.value  = false; return }
+    if (showStats.value) { showStats.value = false; return }
+    game.clearHint()
+    return
+  }
+  if (e.key === '?') { showHelp.value = true; return }
   const mod = e.ctrlKey || e.metaKey
   if (!mod) return
   if (e.key === 'z') {
