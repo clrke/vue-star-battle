@@ -115,15 +115,20 @@ async function share() {
   const clean   = s.streak >= 1
   const url     = window.location.origin + import.meta.env.BASE_URL
 
-  let text = `⭐ Star Battle — ${size} solved in ${time}`
-  if (clean) text += ' · no hints'
-  if (s.isPersonalBest) text += ' · 🏆 Personal best!'
-  if (s.streak >= 2) text += `\n🔥 ${s.streak} clean in a row`
-  text += `\n${url}`
+  // Build the descriptive body (no URL — passed separately to native share)
+  let shareBody = `⭐ Star Battle — ${size} solved in ${time}`
+  if (clean) shareBody += ' · no hints'
+  if (s.isPersonalBest) shareBody += ' · 🏆 Personal best!'
+  if (s.streak >= 2) shareBody += `\n🔥 ${s.streak} clean in a row`
 
   if (navigator.share) {
-    try { await navigator.share({ text }) } catch { /* user cancelled */ }
+    // Native share: title + text + url as separate fields so share targets
+    // (Twitter, Messages, etc.) can handle each appropriately
+    try { await navigator.share({ title: 'Star Battle', text: shareBody, url }) }
+    catch { /* user cancelled */ }
   } else {
+    // Clipboard: include the URL inline so it's a self-contained message
+    const text = `${shareBody}\n${url}`
     try {
       await navigator.clipboard.writeText(text)
       if (shareTimer) clearTimeout(shareTimer)
@@ -139,6 +144,9 @@ async function share() {
 // cursor so keyboard picks up from wherever the user last clicked.
 const boardEl      = ref<HTMLElement | null>(null)
 const focusedCell  = ref<{ r: number; c: number } | null>({ r: 0, c: 0 })
+// Hide the focus ring until the player first uses an arrow key — prevents
+// a distracting blue square at (0,0) for mouse-only users.
+const keyboardMode = ref(false)
 
 // Reset to top-left on every new puzzle
 watch(currentPuzzle, () => {
@@ -168,6 +176,7 @@ function onBoardKey(e: KeyboardEvent) {
   // Arrow keys — move the focus cursor
   if (e.key.startsWith('Arrow')) {
     e.preventDefault()
+    keyboardMode.value = true    // first arrow key → reveal focus ring
     const sz  = n.value
     const cur = focusedCell.value ?? { r: 0, c: 0 }
     const delta: Record<string, [number, number]> = {
@@ -201,6 +210,7 @@ function onBoardPointerdown() { boardEl.value?.focus({ preventScroll: true }) }
 // action is a "place" (→ play sound) or a "remove" (→ silent).
 // Also syncs the keyboard focus cursor to wherever the player clicked.
 function onToggleStar(r: number, c: number) {
+  keyboardMode.value = false      // mouse/touch interaction → hide keyboard ring
   focusedCell.value = { r, c }
   const before = displayCellStates.value[r][c]
   game.toggleStar(r, c)
@@ -212,6 +222,7 @@ function onToggleStar(r: number, c: number) {
   }
 }
 function onToggleMark(r: number, c: number) {
+  keyboardMode.value = false
   focusedCell.value = { r, c }
   const before = displayCellStates.value[r][c]
   game.toggleMark(r, c)
@@ -265,7 +276,7 @@ function onToggleMark(r: number, c: number) {
           :is-hint-extra="isHintExtra(r - 1, c - 1)"
           :in-hover-row="inHoverRow(r - 1)"
           :in-hover-col="inHoverCol(c - 1)"
-          :is-focused="focusedCell?.r === r - 1 && focusedCell?.c === c - 1"
+          :is-focused="keyboardMode && focusedCell?.r === r - 1 && focusedCell?.c === c - 1"
           @hover="onCellHover(r - 1, c - 1)"
           @toggle-star="onToggleStar(r - 1, c - 1)"
           @toggle-mark="onToggleMark(r - 1, c - 1)"
