@@ -12,7 +12,7 @@ import { puzzles } from './data/puzzles'
 import { useDarkMode } from './composables/useDarkMode'
 import { preGenerate, useGenerator } from './composables/useGenerator'
 import { useSound } from './composables/useSound'
-import { getDailyPuzzle, preGenerateDaily, dailySolvedToday, markDailySolved, todayUTC } from './composables/useDaily'
+import { getDailyPuzzle, preGenerateDaily, refreshDailyState, dailySolvedToday, markDailySolved, todayUTC } from './composables/useDaily'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -92,9 +92,15 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'y') { e.preventDefault(); game.redo() }
 }
 
-// Pause progression timer when tab hidden, resume on return
+// Pause progression timer when tab hidden; on return, refresh daily state
+// in case midnight passed while the tab was in the background.
 function onVisibility() {
-  if (document.hidden) progression.pause()
+  if (document.hidden) {
+    progression.pause()
+  } else {
+    refreshDailyState()   // re-evaluates "solved today" against current UTC day
+    preGenerateDaily()    // no-op if same day; starts new worker if day rolled over
+  }
 }
 
 // When the player levels up or down, currentSize changes — immediately start

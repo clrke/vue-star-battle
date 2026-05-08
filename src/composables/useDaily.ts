@@ -105,15 +105,23 @@ function loadRecord(): DailyRecord | null {
   catch { return null }
 }
 
-const _today  = todayUTC()
-const _record = loadRecord()
-
 /** True when the player has already solved today's daily puzzle. */
-export const dailySolvedToday = ref(_record?.day === _today)
+export const dailySolvedToday = ref(loadRecord()?.day === todayUTC())
 
 export function markDailySolved(): void {
   dailySolvedToday.value = true
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ day: _today } satisfies DailyRecord))
+    // Use todayUTC() at call-time (not a cached value) so marking works
+    // correctly even when the app has been open across midnight.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ day: todayUTC() } satisfies DailyRecord))
   } catch { /* storage unavailable */ }
+}
+
+/**
+ * Re-evaluate whether today's daily has been solved.
+ * Call on tab-focus so the state updates if midnight passed while the tab
+ * was hidden (avoids the yesterday-solved / today-unsolvable bug).
+ */
+export function refreshDailyState(): void {
+  dailySolvedToday.value = loadRecord()?.day === todayUTC()
 }
