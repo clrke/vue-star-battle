@@ -441,13 +441,13 @@ function onToggleMark(r: number, c: number) {
 .solved-xp--pos { color: var(--green); }
 .solved-xp--neg { color: var(--red, #e74c3c); }
 
-.solved-pb { color: #f7c948; }
+.solved-pb { color: var(--gold); }
 
 .solved-streak {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: #e67e22;
+  color: var(--orange);
 }
 
 .solved-level {

@@ -168,7 +168,7 @@ function formatTime(ms: number) {
 .hud-streak {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #e67e22;
+  color: var(--orange);
   letter-spacing: 0;
 }
 

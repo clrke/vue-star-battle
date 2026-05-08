@@ -301,15 +301,15 @@ onUnmounted(() => {
 
 /* Solved-state CTA: replaces Hint with a prominent green Next button. */
 .footer-btn--next {
-  border-color: #27ae60;
-  background: #27ae60;
+  border-color: var(--green);
+  background: var(--green);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(39, 174, 96, 0.35);
+  box-shadow: 0 2px 10px var(--green-glow);
   animation: next-pulse 1.6s ease-in-out infinite;
 }
 .footer-btn--next:hover:not(:disabled) {
-  background: #229954;
-  border-color: #229954;
+  background: var(--green-dark);
+  border-color: var(--green-dark);
 }
 .footer-btn--next:disabled {
   animation: none;
@@ -330,8 +330,8 @@ onUnmounted(() => {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes next-pulse {
-  0%, 100% { box-shadow: 0 2px 10px rgba(39, 174, 96, 0.35); }
-  50%      { box-shadow: 0 2px 18px rgba(39, 174, 96, 0.65); }
+  0%, 100% { box-shadow: 0 2px 10px var(--green-glow); }
+  50%      { box-shadow: 0 2px 18px var(--green-glow-strong); }
 }
 
 .hud-actions {

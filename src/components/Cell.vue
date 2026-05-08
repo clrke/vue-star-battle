@@ -146,7 +146,7 @@ import { computed } from 'vue'
 /** Box-shadow string that paints amber strokes only on the region's outer edges. */
 const regionOutlineShadow = computed(() => {
   if (!props.inHintRegion) return ''
-  const c = '#f39c12'
+  const c = 'var(--amber)'   // resolved at paint time — dark mode adapts automatically
   const w = '3px'
   const parts: string[] = []
   if (props.borders.top)    parts.push(`inset 0 ${w} 0 ${c}`)
@@ -401,7 +401,7 @@ onUnmounted(() => {
   inset: 12%;
   pointer-events: none;
   z-index: 2;
-  border: 2.5px dashed #8e44ad;
+  border: 2.5px dashed var(--violet);
   border-radius: 6px;
 }
 
@@ -411,9 +411,9 @@ onUnmounted(() => {
   inset: 2px;
   pointer-events: none;
   z-index: 3;
-  border: 2px solid #3498db;
+  border: 2px solid var(--accent);
   border-radius: 3px;
-  box-shadow: inset 0 0 0 1px rgba(52, 152, 219, 0.25);
+  box-shadow: inset 0 0 0 1px var(--accent-glow);
 }
 
 /* Star-burst: a one-shot expanding ring + 8 outward-flying particles. */
