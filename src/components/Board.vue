@@ -6,7 +6,7 @@ import { useProgressionStore } from '../stores/progression'
 import Cell from './Cell.vue'
 import Confetti from './Confetti.vue'
 import type { BorderEdges } from '../types/puzzle'
-import { playStarPlace, playMarkPlace, playSolve } from '../composables/useSound'
+import { playStarPlace, playMarkPlace, playSolve, playWrong } from '../composables/useSound'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -173,8 +173,12 @@ function onToggleStar(r: number, c: number) {
   focusedCell.value = { r, c }
   const before = displayCellStates.value[r][c]
   game.toggleStar(r, c)
-  // Play only when placing a new star (not removing, not locked)
-  if (before !== 'star' && before !== 'auto-marked') playStarPlace()
+  if (before !== 'star' && before !== 'auto-marked') {
+    // After the store updates, check if the placed star is in violation.
+    // violations is a Pinia computed — accessing it here recomputes synchronously.
+    if (game.violations.has(`${r},${c}`)) playWrong()
+    else playStarPlace()
+  }
 }
 function onToggleMark(r: number, c: number) {
   focusedCell.value = { r, c }

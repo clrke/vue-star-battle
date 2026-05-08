@@ -70,6 +70,15 @@ export function playMarkPlace() {
   tone(900, 'sine', 0.06, 3, 55, ac().currentTime)
 }
 
+/** Short low tone signalling an invalid star placement (violation detected). */
+export function playWrong() {
+  if (muted.value) return
+  const t = ac().currentTime
+  // Two descending semitones — quick, clearly negative, not jarring
+  tone(330, 'sine', 0.10, 5,  80, t)
+  tone(277, 'sine', 0.10, 5, 130, t + 0.08)
+}
+
 /** Ascending C-major arpeggio played when the puzzle is solved. */
 export function playSolve() {
   if (muted.value) return
