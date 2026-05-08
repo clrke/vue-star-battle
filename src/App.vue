@@ -13,6 +13,7 @@ import { useDarkMode } from './composables/useDarkMode'
 import { preGenerate, useGenerator } from './composables/useGenerator'
 import { useSound } from './composables/useSound'
 import { getDailyPuzzle, preGenerateDaily, refreshDailyState, dailySolvedToday, markDailySolved, todayUTC } from './composables/useDaily'
+import { lsGet, lsSet } from './lib/safeStorage'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
@@ -28,9 +29,9 @@ const showStats   = ref(false)
 // Auto-open the help modal on the very first visit so new players see the
 // rules without having to discover the ❓ button themselves.
 const HELP_SEEN_KEY = 'star-battle/help-seen'
-const showHelp = ref(!localStorage.getItem(HELP_SEEN_KEY))
-function openHelp()  { showHelp.value = true;  localStorage.setItem(HELP_SEEN_KEY, '1') }
-function closeHelp() { showHelp.value = false; localStorage.setItem(HELP_SEEN_KEY, '1') }
+const showHelp = ref(!lsGet(HELP_SEEN_KEY))
+function openHelp()  { showHelp.value = true;  lsSet(HELP_SEEN_KEY, '1') }
+function closeHelp() { showHelp.value = false; lsSet(HELP_SEEN_KEY, '1') }
 
 // ── Daily puzzle ──────────────────────────────────────────────────────────────
 const isDailyLoading = ref(false)
@@ -153,6 +154,7 @@ onUnmounted(() => {
         class="hud-action-btn"
         :class="{ 'hud-action-btn--daily-done': dailySolvedToday }"
         :disabled="isDailyLoading"
+        :aria-label="dailySolvedToday ? 'Daily puzzle solved' : isDailyLoading ? 'Generating daily puzzle' : 'Play today\'s daily puzzle'"
         :title="dailySolvedToday ? 'Daily puzzle solved ✓' : isDailyLoading ? 'Generating…' : 'Play today\'s daily puzzle'"
         @click="onDaily"
       >{{ dailySolvedToday ? '✅' : isDailyLoading ? '⏳' : '📅' }}</button>

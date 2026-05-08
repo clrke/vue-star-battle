@@ -86,16 +86,20 @@ export function useGenerator() {
 
     // ── In-flight path: reuse the already-running background worker ─────────
     if (bgWorker && bgSize === n) {
+      // Capture the worker reference once so a synchronous onerror later in
+      // this tick can't null `bgWorker` out from under us. (Without this,
+      // `bgWorker!.onmessage = …` below could throw on the bang assertion.)
+      const w = bgWorker
       status.value = 'generating'
       elapsed.value = 0
       startedAt = Date.now()
       ticker = setInterval(() => { elapsed.value = Date.now() - startedAt }, 100)
 
       return new Promise<Puzzle>((resolve, reject) => {
-        const prevOnMessage = bgWorker!.onmessage
-        bgWorker!.onmessage = (e: MessageEvent) => {
+        const prevOnMessage = w.onmessage
+        w.onmessage = (e: MessageEvent) => {
           // Let the singleton bookkeeping run first
-          prevOnMessage?.call(bgWorker!, e)
+          prevOnMessage?.call(w, e)
           stopTicker()
           if (e.data.type === 'done') {
             bgPuzzle = null   // consumed by this foreground call
@@ -107,10 +111,10 @@ export function useGenerator() {
             reject(new Error('Generation failed'))
           }
         }
-        bgWorker!.onerror = () => {
+        w.onerror = () => {
           stopTicker()
           status.value = 'failed'
-          bgWorker = null
+          if (bgWorker === w) bgWorker = null
           reject(new Error('Worker error'))
         }
       })

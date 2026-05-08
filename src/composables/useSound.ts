@@ -8,12 +8,13 @@
  * Mute state is persisted to localStorage so the preference survives reloads.
  */
 import { ref, watch } from 'vue'
+import { lsGet, lsSet } from '../lib/safeStorage'
 
 const STORAGE_KEY = 'star-battle/sound/muted'
 
 // ── Shared mute state ──────────────────────────────────────────────────────
-const muted = ref<boolean>(localStorage.getItem(STORAGE_KEY) === 'true')
-watch(muted, (v) => localStorage.setItem(STORAGE_KEY, String(v)))
+const muted = ref<boolean>(lsGet(STORAGE_KEY) === 'true')
+watch(muted, (v) => lsSet(STORAGE_KEY, String(v)))
 
 export function useSound() {
   function toggleMute() { muted.value = !muted.value }

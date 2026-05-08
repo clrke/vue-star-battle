@@ -9,6 +9,7 @@
  */
 import { ref } from 'vue'
 import type { Puzzle } from '../types/puzzle'
+import { lsGet, lsSet } from '../lib/safeStorage'
 
 export const DAILY_SIZE  = 5          // fixed 5×5: fast, accessible at any level
 const DAILY_TIME_LIMIT   = 10_000     // ms budget per attempt in the worker
@@ -82,6 +83,10 @@ export function getDailyPuzzle(): Promise<Puzzle | null> {
   if (_day === day && _puzzle) return Promise.resolve(_puzzle)
 
   return new Promise(resolve => {
+    // Push the resolver FIRST so any pending callers are guaranteed to be
+    // notified — even if startWorker were to complete synchronously, or if
+    // a concurrent call's worker finishes between branches below.
+    _pending.push(resolve)
     // Ensure generation is running for today
     if (_day !== day) {
       _day    = day
@@ -92,7 +97,6 @@ export function getDailyPuzzle(): Promise<Puzzle | null> {
       // Same day but worker finished without a puzzle — retry once
       startWorker(day)
     }
-    _pending.push(resolve)
   })
 }
 
@@ -101,7 +105,7 @@ export function getDailyPuzzle(): Promise<Puzzle | null> {
 interface DailyRecord { day: number }
 
 function loadRecord(): DailyRecord | null {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') }
+  try { return JSON.parse(lsGet(STORAGE_KEY) ?? 'null') }
   catch { return null }
 }
 
@@ -110,11 +114,9 @@ export const dailySolvedToday = ref(loadRecord()?.day === todayUTC())
 
 export function markDailySolved(): void {
   dailySolvedToday.value = true
-  try {
-    // Use todayUTC() at call-time (not a cached value) so marking works
-    // correctly even when the app has been open across midnight.
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ day: todayUTC() } satisfies DailyRecord))
-  } catch { /* storage unavailable */ }
+  // Use todayUTC() at call-time (not a cached value) so marking works
+  // correctly even when the app has been open across midnight.
+  lsSet(STORAGE_KEY, JSON.stringify({ day: todayUTC() } satisfies DailyRecord))
 }
 
 /**

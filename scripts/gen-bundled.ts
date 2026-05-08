@@ -11,12 +11,12 @@ const sizes = process.argv.slice(2).map(Number).filter(n => n > 0)
 if (!sizes.length) { console.error('Usage: npx tsx scripts/gen-bundled.ts <n1> [n2 ...]'); process.exit(1) }
 
 for (const n of sizes) {
-  const deadline = Date.now() + 90_000   // 90 s per size
-  process.stdout.write(`Generating ${n}×${n} …`)
+  const deadline = Date.now() + (n >= 12 ? 720_000 : n >= 10 ? 120_000 : 90_000)
+  console.log(`Generating ${n}×${n} … (deadline ${(deadline - Date.now())/1000}s)`)
   const start = Date.now()
   const puzzle = generatePuzzle(n, deadline)
   if (!puzzle) {
-    console.log(' FAILED (time limit)')
+    console.log(`  FAILED (time limit) after ${Date.now() - start}ms`)
     continue
   }
   const ms = Date.now() - start

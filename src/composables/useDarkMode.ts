@@ -1,8 +1,9 @@
 import { ref, watch } from 'vue'
+import { lsGet, lsSet } from '../lib/safeStorage'
 
 const STORAGE_KEY = 'star-battle-dark'
 
-const darkMode = ref<boolean>(localStorage.getItem(STORAGE_KEY) === 'true')
+const darkMode = ref<boolean>(lsGet(STORAGE_KEY) === 'true')
 
 // Apply immediately on load (before any component mounts)
 if (darkMode.value) {
@@ -15,7 +16,7 @@ watch(darkMode, (val) => {
   } else {
     document.documentElement.removeAttribute('data-theme')
   }
-  try { localStorage.setItem(STORAGE_KEY, String(val)) } catch { /* quota */ }
+  lsSet(STORAGE_KEY, String(val))
 })
 
 export function useDarkMode() {

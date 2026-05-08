@@ -235,7 +235,15 @@ function onToggleMark(r: number, c: number) {
 </script>
 
 <template>
-  <div ref="boardEl" class="board-wrap" tabindex="0" @keydown="onBoardKey" @pointerdown="onBoardPointerdown">
+  <div
+    ref="boardEl"
+    class="board-wrap"
+    tabindex="0"
+    role="application"
+    aria-label="Star Battle puzzle grid. Use arrow keys to move, Space or Enter to place a star, D or X to mark a cell."
+    @keydown="onBoardKey"
+    @pointerdown="onBoardPointerdown"
+  >
     <!-- Progress bar -->
     <div class="progress" :class="{ 'progress--done': isSolved }">
       <span class="progress-time">⏱ {{ formatTime(elapsedMs) }}</span>

@@ -260,11 +260,31 @@ const puzzle10x10b: Puzzle = {
   ],
 }
 
+// Verified-unique solution: stars at
+// (0,0) (1,4) (2,2) (3,8) (4,1) (5,5) (6,3) (7,7) (8,9) (9,6)
+const puzzle10x10c: Puzzle = {
+  id: 'classic-10c',
+  title: 'Classic 10×10 III',
+  n: 10,
+  grid: [
+    [0, 1, 1, 1, 3, 3, 3, 3, 3, 3],
+    [0, 0, 0, 1, 1, 5, 3, 3, 3, 3],
+    [0, 0, 2, 2, 5, 5, 3, 8, 8, 3],
+    [0, 2, 2, 5, 5, 5, 3, 8, 3, 3],
+    [4, 4, 5, 5, 5, 5, 5, 8, 8, 8],
+    [4, 5, 5, 6, 6, 5, 8, 8, 7, 8],
+    [4, 5, 6, 6, 9, 8, 8, 8, 7, 8],
+    [4, 5, 5, 9, 9, 8, 8, 7, 7, 8],
+    [4, 9, 5, 9, 9, 8, 8, 7, 8, 8],
+    [9, 9, 9, 9, 9, 9, 9, 7, 7, 7],
+  ],
+}
+
 export const puzzles: Puzzle[] = [
   puzzle4x4a, puzzle4x4b, puzzle4x4c,
   puzzle5x5, puzzle5x5b, puzzle5x5c,
   puzzle6x6, puzzle6x6b, puzzle6x6c,
   puzzle7x7a, puzzle7x7b, puzzle7x7c,
   puzzle8x8, puzzle8x8b, puzzle8x8c,
-  puzzle10x10a, puzzle10x10b,
+  puzzle10x10a, puzzle10x10b, puzzle10x10c,
 ].map(withDifficulty)
