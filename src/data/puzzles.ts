@@ -136,6 +136,35 @@ const puzzle6x6: Puzzle = {
   ],
 }
 
+const puzzle6x6b: Puzzle = {
+  id: 'classic-6b',
+  title: 'Classic 6×6 II',
+  n: 6,
+  grid: [
+    [2, 1, 3, 3, 3, 0],
+    [2, 1, 1, 3, 3, 0],
+    [2, 1, 3, 3, 3, 0],
+    [1, 1, 1, 1, 3, 3],
+    [4, 4, 1, 1, 1, 3],
+    [5, 5, 5, 5, 1, 3],
+  ],
+}
+
+const puzzle7x7b: Puzzle = {
+  id: 'classic-7b',
+  title: 'Classic 7×7 II',
+  n: 7,
+  grid: [
+    [0, 0, 0, 0, 1, 1, 1],
+    [0, 4, 0, 0, 0, 0, 1],
+    [4, 4, 0, 0, 2, 0, 1],
+    [3, 4, 2, 2, 2, 1, 1],
+    [3, 4, 4, 2, 1, 1, 1],
+    [3, 6, 4, 2, 2, 5, 5],
+    [6, 6, 2, 2, 2, 2, 5],
+  ],
+}
+
 const puzzle8x8: Puzzle = {
   id: 'classic-8',
   title: 'Classic 8×8',
@@ -152,8 +181,27 @@ const puzzle8x8: Puzzle = {
   ],
 }
 
+const puzzle8x8b: Puzzle = {
+  id: 'classic-8b',
+  title: 'Classic 8×8 II',
+  n: 8,
+  grid: [
+    [1, 1, 1, 0, 0, 0, 0, 0],
+    [1, 0, 1, 1, 1, 0, 2, 0],
+    [1, 0, 0, 0, 0, 0, 2, 2],
+    [1, 1, 0, 4, 4, 3, 3, 2],
+    [1, 4, 4, 4, 3, 3, 5, 2],
+    [1, 4, 6, 4, 4, 3, 5, 2],
+    [1, 4, 6, 7, 4, 5, 5, 2],
+    [1, 4, 6, 7, 7, 5, 5, 5],
+  ],
+}
+
 export const puzzles: Puzzle[] = [
   puzzle4x4a, puzzle4x4b, puzzle4x4c,
   puzzle5x5, puzzle5x5b, puzzle5x5c,
-  puzzle6x6, puzzle7x7a, puzzle8x8, puzzle10x10a,
+  puzzle6x6, puzzle6x6b,
+  puzzle7x7a, puzzle7x7b,
+  puzzle8x8, puzzle8x8b,
+  puzzle10x10a,
 ].map(withDifficulty)
