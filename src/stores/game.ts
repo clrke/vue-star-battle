@@ -14,6 +14,8 @@ export interface SolveResult {
   leveledDown: boolean
   elapsedMs: number
   isPersonalBest: boolean
+  /** Consecutive hint-free solves after this solve (0 if hints were used). */
+  streak: number
 }
 
 export const useGameStore = defineStore('game', () => {

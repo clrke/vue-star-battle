@@ -252,6 +252,7 @@ function onToggleMark(r: number, c: number) {
             <span class="solved-pb">🏆 Best!</span>
           </template>
         </div>
+        <div v-if="lastSolve?.streak >= 2" class="solved-streak">🔥 {{ lastSolve.streak }} clean in a row!</div>
         <div v-if="lastSolve?.leveledUp" class="solved-level">⬆ Leveled up!</div>
         <div v-else-if="lastSolve?.leveledDown" class="solved-level solved-level--down">⬇ Level down</div>
       </div>
@@ -380,6 +381,13 @@ function onToggleMark(r: number, c: number) {
 .solved-xp--neg { color: var(--red, #e74c3c); }
 
 .solved-pb { color: #f7c948; }
+
+.solved-streak {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e67e22;
+}
 
 .solved-level {
   font-size: 0.78rem;

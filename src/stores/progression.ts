@@ -47,12 +47,14 @@ function defaultState(): PersistedProgression {
 export const useProgressionStore = defineStore('progression', () => {
   const initial = load() ?? defaultState()
 
-  const xp           = ref(initial.xp)
-  const totalSolved  = ref(initial.totalSolved)
-  const totalHints   = ref(initial.totalHints)
-  const totalTimeMs  = ref(initial.totalTimeMs)
-  const perSize      = ref<Record<number, PerSizeStats>>(initial.perSize)
-  const current      = ref<SavedPuzzle | null>(initial.current)
+  const xp            = ref(initial.xp)
+  const totalSolved   = ref(initial.totalSolved)
+  const totalHints    = ref(initial.totalHints)
+  const totalTimeMs   = ref(initial.totalTimeMs)
+  const perSize       = ref<Record<number, PerSizeStats>>(initial.perSize)
+  const current       = ref<SavedPuzzle | null>(initial.current)
+  const currentStreak = ref(initial.currentStreak ?? 0)
+  const bestStreak    = ref(initial.bestStreak    ?? 0)
 
   // Treat the gap between save and reload as a pause: the saved
   // accumulatedMs already covers all real play time, so we reset
@@ -103,6 +105,8 @@ export const useProgressionStore = defineStore('progression', () => {
       totalTimeMs: totalTimeMs.value,
       perSize: perSize.value,
       current: current.value,
+      currentStreak: currentStreak.value,
+      bestStreak: bestStreak.value,
     }
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)) }
     catch { /* quota etc. — silent */ }
@@ -162,8 +166,8 @@ export const useProgressionStore = defineStore('progression', () => {
   /**
    * Record a successful solve. Returns the XP awarded so the UI can announce it.
    */
-  function awardSolve(): { gained: number; level: number; leveledUp: boolean; leveledDown: boolean; elapsedMs: number; isPersonalBest: boolean } {
-    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, leveledDown: false, elapsedMs: 0, isPersonalBest: false }
+  function awardSolve(): { gained: number; level: number; leveledUp: boolean; leveledDown: boolean; elapsedMs: number; isPersonalBest: boolean; streak: number } {
+    if (!current.value) return { gained: 0, level: level.value, leveledUp: false, leveledDown: false, elapsedMs: 0, isPersonalBest: false, streak: 0 }
 
     const n          = current.value.puzzle.n
     const elapsedMs  = getElapsedMs()
@@ -187,15 +191,24 @@ export const useProgressionStore = defineStore('progression', () => {
 
     const isPersonalBest = prevBestTimeMs === null || elapsedMs < prevBestTimeMs
 
+    // Streak: only clean (hint-free) solves count
+    if (hintsUsed === 0) {
+      currentStreak.value += 1
+    } else {
+      currentStreak.value = 0
+    }
+    bestStreak.value = Math.max(bestStreak.value, currentStreak.value)
+
     current.value = null  // puzzle complete; clear in-progress save
 
     return {
       gained,
-      level: level.value,
-      leveledUp:   level.value > prevLevel,
-      leveledDown: level.value < prevLevel,
+      level:         level.value,
+      leveledUp:     level.value > prevLevel,
+      leveledDown:   level.value < prevLevel,
       elapsedMs,
       isPersonalBest,
+      streak:        currentStreak.value,
     }
   }
 
@@ -210,11 +223,14 @@ export const useProgressionStore = defineStore('progression', () => {
     totalTimeMs.value = 0
     perSize.value = {}
     current.value = null
+    currentStreak.value = 0
+    bestStreak.value = 0
   }
 
   return {
     // state
     xp, totalSolved, totalHints, totalTimeMs, perSize, current,
+    currentStreak, bestStreak,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
     currentSize, maxN, isMaxLevel, winsToNextLevel, potentialXp, nextHintCost,

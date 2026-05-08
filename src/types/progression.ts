@@ -23,6 +23,10 @@ export interface PersistedProgression {
   totalTimeMs: number
   perSize: Record<number, PerSizeStats>
   current: SavedPuzzle | null
+  /** Consecutive hint-free solves (resets to 0 on any hint use). */
+  currentStreak?: number
+  /** All-time best consecutive hint-free streak. */
+  bestStreak?: number
 }
 
 // ── Level → grid size (level *determines* size; player has no choice) ────────

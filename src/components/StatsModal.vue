@@ -6,7 +6,7 @@ import { useProgressionStore } from '../stores/progression'
 const emit = defineEmits<{ close: [] }>()
 
 const progression = useProgressionStore()
-const { level, maxN, perSize, totalSolved, totalHints, totalTimeMs } = storeToRefs(progression)
+const { level, maxN, perSize, totalSolved, totalHints, totalTimeMs, currentStreak, bestStreak } = storeToRefs(progression)
 
 const ALL_SIZES = [4, 5, 6, 7, 8, 10, 12] as const
 
@@ -80,6 +80,14 @@ function onBackdropClick(e: MouseEvent) {
           <div class="overall-stat">
             <span class="overall-stat__value">Lv {{ level }}</span>
             <span class="overall-stat__label">Current Level</span>
+          </div>
+          <div class="overall-stat">
+            <span class="overall-stat__value">🔥 {{ currentStreak }}</span>
+            <span class="overall-stat__label">Clean Streak</span>
+          </div>
+          <div class="overall-stat">
+            <span class="overall-stat__value">🔥 {{ bestStreak }}</span>
+            <span class="overall-stat__label">Best Streak</span>
           </div>
         </div>
 

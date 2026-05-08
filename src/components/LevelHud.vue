@@ -9,6 +9,7 @@ const game        = useGameStore()
 const {
   level, xp, xpIntoLevel, xpForLevelSpan, xpToNextLevel, currentSize,
   totalSolved, totalHints, totalTimeMs, isMaxLevel, winsToNextLevel,
+  currentStreak, bestStreak,
 } = storeToRefs(progression)
 const { lastSolve } = storeToRefs(game)
 
@@ -48,7 +49,10 @@ function formatTime(ms: number) {
   <div class="hud" :class="{ 'hud--open': expanded }">
     <button class="hud-summary" @click="expanded = !expanded">
       <div class="hud-level">
-        <span class="hud-level__num">Lv {{ level }}</span>
+        <span class="hud-level__num">
+          Lv {{ level }}
+          <span v-if="currentStreak >= 3" class="hud-streak" :title="`${currentStreak} clean solves in a row`">🔥{{ currentStreak }}</span>
+        </span>
         <span class="hud-level__max">Playing {{ currentSize }}×{{ currentSize }}</span>
       </div>
 
@@ -78,6 +82,8 @@ function formatTime(ms: number) {
           <div><dt>Puzzles solved</dt><dd>{{ totalSolved }}</dd></div>
           <div><dt>Hints used</dt><dd>{{ totalHints }}</dd></div>
           <div><dt>Total play time</dt><dd>{{ formatTime(totalTimeMs) }}</dd></div>
+          <div><dt>Clean streak</dt><dd>🔥 {{ currentStreak }}</dd></div>
+          <div><dt>Best streak</dt><dd>🔥 {{ bestStreak }}</dd></div>
         </dl>
       </div>
     </Transition>
@@ -137,6 +143,16 @@ function formatTime(ms: number) {
   font-weight: 800;
   color: var(--text);
   letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-streak {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #e67e22;
+  letter-spacing: 0;
 }
 
 .hud-level__max {
