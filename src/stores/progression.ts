@@ -89,7 +89,7 @@ export const useProgressionStore = defineStore('progression', () => {
    */
   const potentialXp       = computed(() => {
     if (!current.value) return null
-    return xpForSolve(current.value.puzzle.n, current.value.hintsUsed)
+    return xpForSolve(current.value.puzzle.n)
   })
   /** Cost in XP of the *next* hint for the current puzzle size. */
   const nextHintCost      = computed(() => hintCostForSize(currentSize.value))
@@ -149,6 +149,11 @@ export const useProgressionStore = defineStore('progression', () => {
     if (!current.value) return
     current.value.hintsUsed += 1
     totalHints.value += 1
+    // Debit the hint cost from XP immediately. Level cascades automatically
+    // via the levelForXp computed, so the player can level *down* on a hint.
+    // Floor at 0 so they can't go negative — this is the soft cap.
+    const cost = hintCostForSize(current.value.puzzle.n)
+    xp.value = Math.max(0, xp.value - cost)
   }
 
   /** Active play time in this session (excludes time since startedAt while paused). */
@@ -172,11 +177,12 @@ export const useProgressionStore = defineStore('progression', () => {
     const n          = current.value.puzzle.n
     const elapsedMs  = getElapsedMs()
     const hintsUsed  = current.value.hintsUsed
-    const gained     = xpForSolve(n, hintsUsed)
+    // Hint costs were already debited in recordHintUsed(); the solve reward
+    // is the clean base XP for the grid size.
+    const gained     = xpForSolve(n)
 
     const prevLevel  = level.value
-    // XP can drop from heavy hint use. Floor at 0 so a player can't sink
-    // below level 1.
+    // Floor at 0 just in case some other code path subtracts XP later.
     xp.value         = Math.max(0, xp.value + gained)
     totalSolved.value += 1
     totalTimeMs.value += elapsedMs

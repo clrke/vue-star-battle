@@ -92,16 +92,15 @@ function hintCost(n: number): number {
 }
 
 /**
- * Solve award: clean reward minus hint costs. CAN BE NEGATIVE — using too many
- * hints means a net XP loss, which can drop you back a level.
+ * Solve award: full base XP for this grid size.
  *
- * Examples (size 5×5, base 25):
- *   0 hints → +25   1 hint → +20   3 hints → +10
- *   5 hints →   0   6 hints →  −5  (level-down territory)
+ * Hint costs are debited from the player's XP *immediately* in
+ * `recordHintUsed()` (not subtracted again here), so the model is honest:
+ * the Hint button shows '−N XP' and applies it on click. The solve reward
+ * is then the clean base reward regardless of prior hint use.
  */
-export function xpForSolve(n: number, hintsUsed: number): number {
-  const base = BASE_XP[n] ?? 50
-  return base - hintCost(n) * hintsUsed
+export function xpForSolve(n: number): number {
+  return BASE_XP[n] ?? 50
 }
 
 export const baseXpForSize = (n: number): number => BASE_XP[n] ?? 50

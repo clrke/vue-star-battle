@@ -15,7 +15,7 @@ import { useSound } from './composables/useSound'
 const game        = useGameStore()
 const progression = useProgressionStore()
 const { isSolved, canUndo, canRedo } = storeToRefs(game)
-const { potentialXp, nextHintCost, currentSize } = storeToRefs(progression)
+const { nextHintCost, currentSize } = storeToRefs(progression)
 
 const { status: genStatus, generate } = useGenerator()
 const isGenerating = computed(() => genStatus.value === 'generating')
@@ -24,22 +24,9 @@ const { darkMode, toggleDark } = useDarkMode()
 const { muted, toggleMute } = useSound()
 const showStats = ref(false)
 
-// Live XP preview on the Hint button: shows what the player will earn
-// if they solve right now, minus the cost of the next hint they're about
-// to request. Color-codes green/muted/red to signal whether they're in
-// positive, zero, or level-down territory.
-const hintButtonXp = computed(() => {
-  // potentialXp is what they'd earn if they solved NOW (before this hint)
-  // subtract nextHintCost to show what it'll be AFTER clicking Hint
-  const after = (potentialXp.value ?? 0) - nextHintCost.value
-  return after
-})
-const hintXpClass = computed(() => {
-  const v = hintButtonXp.value
-  if (v > 0)  return 'hint-xp--pos'
-  if (v === 0) return 'hint-xp--zero'
-  return 'hint-xp--neg'
-})
+// Hint cost is debited from XP immediately in recordHintUsed(); the badge
+// just shows that flat negative cost so the player knows exactly what
+// clicking Hint will do. No conditional / guess-what-you-might-earn math.
 
 async function onNext() {
   if (isGenerating.value) return
@@ -157,9 +144,7 @@ onUnmounted(() => {
         @click="game.showHint()"
       >
         Hint
-        <span class="hint-xp-badge" :class="hintXpClass">
-          {{ hintButtonXp >= 0 ? '+' : '' }}{{ hintButtonXp }} XP
-        </span>
+        <span class="hint-xp-badge hint-xp--neg">−{{ nextHintCost }} XP</span>
       </button>
     </footer>
   </div>
