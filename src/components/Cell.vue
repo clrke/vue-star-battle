@@ -221,7 +221,7 @@ onUnmounted(() => {
     <div
       v-if="inHintRow || inHintCol"
       class="cell__hl-line"
-      :style="{ '--hl-line-strength': lineHighlightStrength } as any"
+      :style="({ '--hl-line-strength': lineHighlightStrength } as Record<string, number>)"
       aria-hidden="true"
     />
 
