@@ -11,7 +11,7 @@ import { playStarPlace, playMarkPlace, playSolve, playWrong } from '../composabl
 const game        = useGameStore()
 const progression = useProgressionStore()
 const {
-  currentPuzzle, displayCellStates, violations, isSolved,
+  currentPuzzle, displayCellStates, violations, completion, isSolved,
   hintCell, lastHint, starCount, lastSolve, currentHintStep,
 } = storeToRefs(game)
 const { currentSize, perSize } = storeToRefs(progression)
@@ -82,6 +82,13 @@ const isHint      = (row: number, col: number) => {
   const h = hintCell.value
   return h !== null && h[0] === row && h[1] === col
 }
+
+// "Complete" = part of any row/column/region that holds its single
+// non-violated star. Cells in any complete line get a gold shimmer.
+const inCompleteLine = (row: number, col: number) =>
+  completion.value.rows.has(row) ||
+  completion.value.cols.has(col) ||
+  completion.value.regions.has(currentPuzzle.value.grid[row][col])
 const hintAction = computed(() =>
   lastHint.value && (lastHint.value.action === 'place-mark' || lastHint.value.action === 'place-star')
     ? lastHint.value.action
@@ -288,6 +295,8 @@ function onToggleMark(r: number, c: number) {
           :in-hover-row="inHoverRow(r - 1)"
           :in-hover-col="inHoverCol(c - 1)"
           :is-focused="keyboardMode && focusedCell?.r === r - 1 && focusedCell?.c === c - 1"
+          :in-complete-line="inCompleteLine(r - 1, c - 1)"
+          :shimmer-index="(r - 1) + (c - 1)"
           @hover="onCellHover(r - 1, c - 1)"
           @toggle-star="onToggleStar(r - 1, c - 1)"
           @toggle-mark="onToggleMark(r - 1, c - 1)"

@@ -263,6 +263,58 @@ export const useGameStore = defineStore('game', () => {
     return bad
   })
 
+  // ── Completion (per-line satisfaction) ───────────────────────────────────
+  //
+  // A row / column / region is "complete" once it holds exactly one star
+  // AND none of its stars are in violation. The Board uses these sets to
+  // paint a gold shimmer over their cells as the player builds the
+  // solution — instant positive feedback that the constraint is locked in,
+  // even before the rest of the board is finished.
+  //
+  // We deliberately require BOTH "exactly one star total" AND "no
+  // violations on its stars" so that:
+  //   - a row with two stars (one violated) doesn't shimmer just because
+  //     one star is non-violated,
+  //   - a row with one star that's adjacency-violating a star in the next
+  //     row doesn't read as "happy" while it's clearly broken.
+
+  const completion = computed<{ rows: Set<number>; cols: Set<number>; regions: Set<number> }>(() => {
+    const n      = currentPuzzle.value.n
+    const grid   = currentPuzzle.value.grid
+    const states = cellStates.value
+    const v      = violations.value
+
+    const rowCnt = new Array(n).fill(0)
+    const colCnt = new Array(n).fill(0)
+    const regCnt = new Array(n).fill(0)
+    const rowBad = new Array(n).fill(false)
+    const colBad = new Array(n).fill(false)
+    const regBad = new Array(n).fill(false)
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (states[r]?.[c] !== 'star') continue
+        const rid = grid[r][c]
+        rowCnt[r]++; colCnt[c]++; regCnt[rid]++
+        if (v.has(`${r},${c}`)) {
+          rowBad[r] = true
+          colBad[c] = true
+          regBad[rid] = true
+        }
+      }
+    }
+
+    const rows = new Set<number>()
+    const cols = new Set<number>()
+    const regions = new Set<number>()
+    for (let i = 0; i < n; i++) {
+      if (rowCnt[i] === 1 && !rowBad[i]) rows.add(i)
+      if (colCnt[i] === 1 && !colBad[i]) cols.add(i)
+      if (regCnt[i] === 1 && !regBad[i]) regions.add(i)
+    }
+    return { rows, cols, regions }
+  })
+
   // ── Progress / Win ────────────────────────────────────────────────────────
 
   const starCount = computed(() => {
@@ -293,7 +345,7 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     currentPuzzle, cellStates, displayCellStates,
-    violations, isSolved, starCount,
+    violations, completion, isSolved, starCount,
     hintCell, lastHint, lastSolve,
     hintStepIndex, currentHintStep, totalHintSteps, isFirstHintStep, isLastHintStep,
     canUndo, canRedo,

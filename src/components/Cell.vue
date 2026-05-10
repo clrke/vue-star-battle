@@ -34,6 +34,13 @@ const props = defineProps<{
   inHoverCol?: boolean
   /** Keyboard-focus cursor — renders a blue ring around this cell. */
   isFocused?: boolean
+  /** True if this cell belongs to a satisfied (1-star, no-violation) row,
+   *  column, or region — triggers the gold shimmer overlay. */
+  inCompleteLine?: boolean
+  /** Cell's diagonal index (row + col), used to phase-shift the shimmer
+   *  animation so the gold appears to sweep diagonally across the board
+   *  rather than every cell flashing in unison. */
+  shimmerIndex?: number
 }>()
 
 const emit = defineEmits<{
@@ -209,6 +216,17 @@ onUnmounted(() => {
     @touchend="handleTouchEnd"
     @touchcancel="handleTouchCancel"
   >
+    <!-- Completion shimmer: gold sweep over any row/column/region whose
+         single non-violated star is in place. Phase-shifted by shimmerIndex
+         so adjacent cells appear to ripple together diagonally. Sits under
+         the hint overlays so hints still win when both apply. -->
+    <div
+      v-if="inCompleteLine"
+      class="cell__hl-complete"
+      :style="({ '--shimmer-delay': `${-((shimmerIndex ?? 0) * 90)}ms` } as Record<string, string>)"
+      aria-hidden="true"
+    />
+
     <!-- Region highlight: amber tint + perimeter outline (treats region as one shape) -->
     <div
       v-if="inHintRegion"
@@ -403,6 +421,44 @@ onUnmounted(() => {
   z-index: 2;
   border: 2.5px dashed var(--violet);
   border-radius: 6px;
+}
+
+/* Completion shimmer: a static gold tint + a diagonal bright stripe that
+ * sweeps across, phase-shifted per cell via --shimmer-delay so the gold
+ * appears to ripple along the row/column/region rather than every cell
+ * flashing in unison. z-index 0 keeps it above the region background but
+ * below the hint overlays (z=1) and focus / burst layers (z=3). */
+.cell__hl-complete {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(
+      115deg,
+      rgba(247, 201, 72, 0.08)  0%,
+      rgba(247, 201, 72, 0.08) 38%,
+      rgba(247, 201, 72, 0.48) 50%,
+      rgba(247, 201, 72, 0.08) 62%,
+      rgba(247, 201, 72, 0.08) 100%
+    ),
+    rgba(247, 201, 72, 0.14);
+  background-size: 260% 100%, 100% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer-gold 2.8s linear infinite;
+  animation-delay: var(--shimmer-delay, 0ms);
+}
+
+@keyframes shimmer-gold {
+  0%   { background-position: -130% 0, 0 0; }
+  100% { background-position:  130% 0, 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell__hl-complete {
+    animation: none;
+    background: rgba(247, 201, 72, 0.20);
+  }
 }
 
 /* Keyboard navigation cursor: thin blue ring, z-index above hint highlights. */
