@@ -7,50 +7,13 @@
 
 import { generatePuzzle } from '../src/solver/generator.js'
 import { deriveHint } from '../src/solver/hints.js'
+import { applyAutoMarks } from '../src/solver/autoMarks.js'
 import type { Puzzle, DisplayCellState } from '../src/types/puzzle.js'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function emptyState(n: number): DisplayCellState[][] {
   return Array.from({ length: n }, () => Array<DisplayCellState>(n).fill('empty'))
-}
-
-/**
- * Mirror the auto-mark logic from src/stores/game.ts.
- * For each star, marks 'empty' cells in same row/col/region/8-adjacent as
- * 'auto-marked'. Operates on raw user state (CellState) but returns
- * DisplayCellState[][] for deriveHint.
- */
-function applyAutoMarks(puzzle: Puzzle, state: DisplayCellState[][]): DisplayCellState[][] {
-  const { n, grid } = puzzle
-  const out: DisplayCellState[][] = state.map(row => row.slice() as DisplayCellState[])
-
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (out[r][c] !== 'star') continue
-      const rid = grid[r][c]
-
-      // Same row / column
-      for (let i = 0; i < n; i++) {
-        if (i !== c && out[r][i] === 'empty') out[r][i] = 'auto-marked'
-        if (i !== r && out[i][c] === 'empty') out[i][c] = 'auto-marked'
-      }
-      // Same region
-      for (let rr = 0; rr < n; rr++)
-        for (let cc = 0; cc < n; cc++)
-          if (grid[rr][cc] === rid && !(rr === r && cc === c) && out[rr][cc] === 'empty')
-            out[rr][cc] = 'auto-marked'
-      // 8-adjacent
-      for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue
-          const nr = r + dr, nc = c + dc
-          if (nr < 0 || nr >= n || nc < 0 || nc >= n) continue
-          if (out[nr][nc] === 'empty') out[nr][nc] = 'auto-marked'
-        }
-    }
-  }
-  return out
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────

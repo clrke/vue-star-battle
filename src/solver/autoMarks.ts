@@ -7,9 +7,8 @@ import type { Puzzle, DisplayCellState } from '../types/puzzle'
  * neighbourhood that are still 'empty' become 'auto-marked'. Auto-marks are
  * purely computed and never persisted; undoing a star removes them instantly.
  *
- * This is the canonical shared implementation.  The game store (game.ts) and
- * test helpers duplicate the same logic — they should be migrated here over
- * time, but are not changed in this commit to avoid churn.
+ * This is the canonical shared implementation used by the game store (game.ts),
+ * the hint test suite, and the simulation script.
  */
 export function applyAutoMarks(
   puzzle: Puzzle,

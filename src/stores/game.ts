@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import type { Puzzle, CellState, DisplayCellState } from '../types/puzzle'
 import { puzzles } from '../data/puzzles'
 import { deriveHint, type Hint } from '../solver/hints'
+import { applyAutoMarks } from '../solver/autoMarks'
 import { useProgressionStore } from './progression'
 
 const MAX_HISTORY = 60
@@ -87,40 +88,11 @@ export const useGameStore = defineStore('game', () => {
   // and the user's real marks survive untouched.
 
   const displayCellStates = computed<DisplayCellState[][]>(() => {
-    const n     = currentPuzzle.value.n
-    const grid  = currentPuzzle.value.grid
-    const user  = cellStates.value
+    const user = cellStates.value
     if (!user.length) return []
-
-    const out: DisplayCellState[][] =
-      user.map(row => row.slice() as DisplayCellState[])
-
-    for (let r = 0; r < n; r++) {
-      for (let c = 0; c < n; c++) {
-        if (user[r][c] !== 'star') continue
-        const rid = grid[r][c]
-
-        // Same row / column
-        for (let i = 0; i < n; i++) {
-          if (i !== c && out[r][i] === 'empty') out[r][i] = 'auto-marked'
-          if (i !== r && out[i][c] === 'empty') out[i][c] = 'auto-marked'
-        }
-        // Same region
-        for (let rr = 0; rr < n; rr++)
-          for (let cc = 0; cc < n; cc++)
-            if (grid[rr][cc] === rid && !(rr === r && cc === c) && out[rr][cc] === 'empty')
-              out[rr][cc] = 'auto-marked'
-        // 8-adjacent
-        for (let dr = -1; dr <= 1; dr++)
-          for (let dc = -1; dc <= 1; dc++) {
-            if (dr === 0 && dc === 0) continue
-            const nr = r + dr, nc = c + dc
-            if (nr < 0 || nr >= n || nc < 0 || nc >= n) continue
-            if (out[nr][nc] === 'empty') out[nr][nc] = 'auto-marked'
-          }
-      }
-    }
-    return out
+    // CellState is a strict subset of DisplayCellState ('auto-marked' never
+    // appears in raw user state), so the cast is safe.
+    return applyAutoMarks(currentPuzzle.value, user as DisplayCellState[][])
   })
 
   /** True if the cell is auto-marked (locked by an existing star). */
