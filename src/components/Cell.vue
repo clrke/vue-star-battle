@@ -217,13 +217,15 @@ onUnmounted(() => {
     @touchcancel="handleTouchCancel"
   >
     <!-- Completion shimmer: gold sweep over any row/column/region whose
-         single non-violated star is in place. Phase-shifted by shimmerIndex
-         so adjacent cells appear to ripple together diagonally. Sits under
-         the hint overlays so hints still win when both apply. -->
+         single non-violated star is in place. shimmerIndex = distance from
+         the satisfying star (steps along the row / down the column /
+         Chebyshev across the region), so the wave visibly emanates from
+         the move the player just made. Sits under the hint overlays so
+         hints still win when both apply. -->
     <div
       v-if="inCompleteLine"
       class="cell__hl-complete"
-      :style="({ '--shimmer-delay': `${-((shimmerIndex ?? 0) * 90)}ms` } as Record<string, string>)"
+      :style="({ '--shimmer-delay': `${-((shimmerIndex ?? 0) * 140)}ms` } as Record<string, string>)"
       aria-hidden="true"
     />
 

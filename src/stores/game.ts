@@ -277,8 +277,19 @@ export const useGameStore = defineStore('game', () => {
   //     one star is non-violated,
   //   - a row with one star that's adjacency-violating a star in the next
   //     row doesn't read as "happy" while it's clearly broken.
+  //
+  // We also record WHICH cell holds the satisfying star for each completed
+  // entity. The Board uses that anchor to ripple the shimmer outward from
+  // the star itself rather than from a fixed corner of the board — so the
+  // wave visibly emanates from the move the player just made.
 
-  const completion = computed<{ rows: Set<number>; cols: Set<number>; regions: Set<number> }>(() => {
+  type StarPos = [number, number]
+
+  const completion = computed<{
+    rows: Map<number, StarPos>
+    cols: Map<number, StarPos>
+    regions: Map<number, StarPos>
+  }>(() => {
     const n      = currentPuzzle.value.n
     const grid   = currentPuzzle.value.grid
     const states = cellStates.value
@@ -290,12 +301,20 @@ export const useGameStore = defineStore('game', () => {
     const rowBad = new Array(n).fill(false)
     const colBad = new Array(n).fill(false)
     const regBad = new Array(n).fill(false)
+    const rowStar: Array<StarPos | null> = new Array(n).fill(null)
+    const colStar: Array<StarPos | null> = new Array(n).fill(null)
+    const regStar: Array<StarPos | null> = new Array(n).fill(null)
 
     for (let r = 0; r < n; r++) {
       for (let c = 0; c < n; c++) {
         if (states[r]?.[c] !== 'star') continue
         const rid = grid[r][c]
         rowCnt[r]++; colCnt[c]++; regCnt[rid]++
+        // Last-writer-wins, but the entry is only read when cnt === 1, so
+        // the only writer is also the only star — no ambiguity.
+        rowStar[r]   = [r, c]
+        colStar[c]   = [r, c]
+        regStar[rid] = [r, c]
         if (v.has(`${r},${c}`)) {
           rowBad[r] = true
           colBad[c] = true
@@ -304,13 +323,13 @@ export const useGameStore = defineStore('game', () => {
       }
     }
 
-    const rows = new Set<number>()
-    const cols = new Set<number>()
-    const regions = new Set<number>()
+    const rows    = new Map<number, StarPos>()
+    const cols    = new Map<number, StarPos>()
+    const regions = new Map<number, StarPos>()
     for (let i = 0; i < n; i++) {
-      if (rowCnt[i] === 1 && !rowBad[i]) rows.add(i)
-      if (colCnt[i] === 1 && !colBad[i]) cols.add(i)
-      if (regCnt[i] === 1 && !regBad[i]) regions.add(i)
+      if (rowCnt[i] === 1 && !rowBad[i] && rowStar[i]) rows.set(i,    rowStar[i]!)
+      if (colCnt[i] === 1 && !colBad[i] && colStar[i]) cols.set(i,    colStar[i]!)
+      if (regCnt[i] === 1 && !regBad[i] && regStar[i]) regions.set(i, regStar[i]!)
     }
     return { rows, cols, regions }
   })

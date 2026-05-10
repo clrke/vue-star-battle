@@ -89,6 +89,32 @@ const inCompleteLine = (row: number, col: number) =>
   completion.value.rows.has(row) ||
   completion.value.cols.has(col) ||
   completion.value.regions.has(currentPuzzle.value.grid[row][col])
+
+/**
+ * Per-cell shimmer offset, in animation-step units.
+ *
+ * The shimmer ripples outward from whichever star is closest. Each
+ * completed entity contributes a distance:
+ *   - completed row    → |col - starCol|             (1-D along the row)
+ *   - completed column → |row - starRow|             (1-D along the column)
+ *   - completed region → max(|Δrow|, |Δcol|)         (Chebyshev: square ripple)
+ *
+ * The cell's offset is the MINIMUM of those distances — i.e. the cell
+ * shimmers when the nearest wave reaches it. This way, late-game when
+ * multiple lines are complete simultaneously, every cell still picks up
+ * the closest ongoing ripple instead of being dominated by one priority
+ * line, and the star itself always sits at offset 0 (all distances zero).
+ */
+function cellShimmerIndex(row: number, col: number): number {
+  let best = Infinity
+  const rowAnchor = completion.value.rows.get(row)
+  if (rowAnchor) best = Math.min(best, Math.abs(col - rowAnchor[1]))
+  const colAnchor = completion.value.cols.get(col)
+  if (colAnchor) best = Math.min(best, Math.abs(row - colAnchor[0]))
+  const regAnchor = completion.value.regions.get(currentPuzzle.value.grid[row][col])
+  if (regAnchor) best = Math.min(best, Math.max(Math.abs(row - regAnchor[0]), Math.abs(col - regAnchor[1])))
+  return Number.isFinite(best) ? best : 0
+}
 const hintAction = computed(() =>
   lastHint.value && (lastHint.value.action === 'place-mark' || lastHint.value.action === 'place-star')
     ? lastHint.value.action
@@ -296,7 +322,7 @@ function onToggleMark(r: number, c: number) {
           :in-hover-col="inHoverCol(c - 1)"
           :is-focused="keyboardMode && focusedCell?.r === r - 1 && focusedCell?.c === c - 1"
           :in-complete-line="inCompleteLine(r - 1, c - 1)"
-          :shimmer-index="(r - 1) + (c - 1)"
+          :shimmer-index="cellShimmerIndex(r - 1, c - 1)"
           @hover="onCellHover(r - 1, c - 1)"
           @toggle-star="onToggleStar(r - 1, c - 1)"
           @toggle-mark="onToggleMark(r - 1, c - 1)"
