@@ -6,6 +6,7 @@ import { useProgressionStore } from '../stores/progression'
 import Cell from './Cell.vue'
 import Confetti from './Confetti.vue'
 import type { BorderEdges } from '../types/puzzle'
+import { cellShimmerIndex as shimmerIndexLib } from '../lib/shimmer'
 import { playStarPlace, playMarkPlace, playSolve, playWrong } from '../composables/useSound'
 
 const game        = useGameStore()
@@ -84,36 +85,17 @@ const isHint      = (row: number, col: number) => {
 }
 
 // "Complete" = part of any row/column/region that holds its single
-// non-violated star. Cells in any complete line get a gold shimmer.
+// non-violated star. Cells in any complete line get a gold shimmer
+// whose phase per cell is the cell's distance from the satisfying star
+// (see src/lib/shimmer.ts for the pure math + the property-based tests
+// that pin down wave direction and continuity).
 const inCompleteLine = (row: number, col: number) =>
   completion.value.rows.has(row) ||
   completion.value.cols.has(col) ||
   completion.value.regions.has(currentPuzzle.value.grid[row][col])
 
-/**
- * Per-cell shimmer offset, in animation-step units.
- *
- * The shimmer ripples outward from whichever star is closest. Each
- * completed entity contributes a distance:
- *   - completed row    → |col - starCol|             (1-D along the row)
- *   - completed column → |row - starRow|             (1-D along the column)
- *   - completed region → max(|Δrow|, |Δcol|)         (Chebyshev: square ripple)
- *
- * The cell's offset is the MINIMUM of those distances — i.e. the cell
- * shimmers when the nearest wave reaches it. This way, late-game when
- * multiple lines are complete simultaneously, every cell still picks up
- * the closest ongoing ripple instead of being dominated by one priority
- * line, and the star itself always sits at offset 0 (all distances zero).
- */
 function cellShimmerIndex(row: number, col: number): number {
-  let best = Infinity
-  const rowAnchor = completion.value.rows.get(row)
-  if (rowAnchor) best = Math.min(best, Math.abs(col - rowAnchor[1]))
-  const colAnchor = completion.value.cols.get(col)
-  if (colAnchor) best = Math.min(best, Math.abs(row - colAnchor[0]))
-  const regAnchor = completion.value.regions.get(currentPuzzle.value.grid[row][col])
-  if (regAnchor) best = Math.min(best, Math.max(Math.abs(row - regAnchor[0]), Math.abs(col - regAnchor[1])))
-  return Number.isFinite(best) ? best : 0
+  return shimmerIndexLib(row, col, currentPuzzle.value.grid, completion.value)
 }
 const hintAction = computed(() =>
   lastHint.value && (lastHint.value.action === 'place-mark' || lastHint.value.action === 'place-star')

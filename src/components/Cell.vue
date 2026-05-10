@@ -217,15 +217,17 @@ onUnmounted(() => {
     @touchcancel="handleTouchCancel"
   >
     <!-- Completion shimmer: gold sweep over any row/column/region whose
-         single non-violated star is in place. shimmerIndex = distance from
-         the satisfying star (steps along the row / down the column /
-         Chebyshev across the region), so the wave visibly emanates from
-         the move the player just made. Sits under the hint overlays so
-         hints still win when both apply. -->
+         single non-violated star is in place. shimmerIndex = distance
+         from the satisfying star (1-D along a row/column, Chebyshev
+         across a region) — see src/lib/shimmer.ts. The delay is POSITIVE
+         (offset × SHIMMER_STEP_MS), so cells farther from the star
+         start their cycle later and the wave emanates outward from the
+         placed move. Sits under the hint overlays so hints still win
+         when both apply. -->
     <div
       v-if="inCompleteLine"
       class="cell__hl-complete"
-      :style="({ '--shimmer-delay': `${-((shimmerIndex ?? 0) * 140)}ms` } as Record<string, string>)"
+      :style="({ '--shimmer-delay': `${(shimmerIndex ?? 0) * 140}ms` } as Record<string, string>)"
       aria-hidden="true"
     />
 
@@ -426,10 +428,14 @@ onUnmounted(() => {
 }
 
 /* Completion shimmer: a static gold tint + a diagonal bright stripe that
- * sweeps across, phase-shifted per cell via --shimmer-delay so the gold
- * appears to ripple along the row/column/region rather than every cell
- * flashing in unison. z-index 0 keeps it above the region background but
- * below the hint overlays (z=1) and focus / burst layers (z=3). */
+ * sweeps L→R across each cell. Phase-shifted per cell via --shimmer-delay
+ * (positive — proportional to the cell's distance from the satisfying
+ * star) so the wave emanates outward from the placed move. The keyframe
+ * runs background-position from +100% (stripe just off-screen left, at
+ * cycle 0%) to 0% (stripe just off-screen right, at cycle 100%) — see
+ * src/lib/shimmer.ts for the matching constants and the property-based
+ * tests that pin these values down. z-index 0 keeps it above the region
+ * background but below the hint overlays (z=1) and focus / burst (z=3). */
 .cell__hl-complete {
   position: absolute;
   inset: 0;
@@ -452,8 +458,8 @@ onUnmounted(() => {
 }
 
 @keyframes shimmer-gold {
-  0%   { background-position: -130% 0, 0 0; }
-  100% { background-position:  130% 0, 0 0; }
+  0%   { background-position: 100% 0, 0 0; }
+  100% { background-position:   0% 0, 0 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
