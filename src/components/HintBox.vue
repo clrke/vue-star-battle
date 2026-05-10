@@ -206,6 +206,7 @@ function apply() {
 .hint--logic .hint-progress-dot--done    { background: var(--text); }
 .hint--mark .hint-progress-dot--done     { background: var(--accent); }
 .hint--fallback .hint-progress-dot--done { background: var(--amber); }
+.hint--error .hint-progress-dot--done    { background: var(--red); }
 
 .hint-actions {
   margin-top: 10px;
@@ -236,6 +237,7 @@ function apply() {
 .hint--logic .hint-btn--primary { background: var(--text); border-color: var(--text); color: var(--bg); }
 .hint--mark  .hint-btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .hint--fallback .hint-btn--primary { background: var(--amber); border-color: var(--amber); color: #fff; }
+.hint--error .hint-btn--primary { background: var(--red); border-color: var(--red); color: #fff; }
 .hint-btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
 
 /* Transition */

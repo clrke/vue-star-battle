@@ -17,7 +17,7 @@ import { lsGet, lsSet } from './lib/safeStorage'
 
 const game        = useGameStore()
 const progression = useProgressionStore()
-const { isSolved, canUndo, canRedo } = storeToRefs(game)
+const { isSolved, canUndo, canRedo, lastHint } = storeToRefs(game)
 const { nextHintCost, currentSize } = storeToRefs(progression)
 
 const { status: genStatus, generate } = useGenerator()
@@ -195,6 +195,8 @@ onUnmounted(() => {
       <button
         v-else
         class="footer-btn footer-btn--hint"
+        :disabled="lastHint != null"
+        :title="lastHint != null ? 'A hint is already showing — dismiss or apply it first' : 'Get a hint'"
         @click="game.showHint()"
       >
         Hint
