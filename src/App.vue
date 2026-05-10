@@ -22,6 +22,7 @@ const { nextHintCost, currentSize, currentMaxLookaheads } = storeToRefs(progress
 
 const { status: genStatus, generate } = useGenerator()
 const isGenerating = computed(() => genStatus.value === 'generating')
+const isGenFailed  = computed(() => genStatus.value === 'failed')
 
 const { darkMode, toggleDark } = useDarkMode()
 const { muted, toggleMute } = useSound()
@@ -35,13 +36,16 @@ function closeHelp() { showHelp.value = false; lsSet(HELP_SEEN_KEY, '1') }
 
 // ── Daily puzzle ──────────────────────────────────────────────────────────────
 const isDailyLoading = ref(false)
+const isDailyFailed  = ref(false)
 
 async function onDaily() {
   if (isDailyLoading.value || dailySolvedToday.value) return
   isDailyLoading.value = true
+  isDailyFailed.value  = false
   try {
     const puzzle = await getDailyPuzzle()
     if (puzzle) game.initBoard(puzzle)
+    else isDailyFailed.value = true
   } finally {
     isDailyLoading.value = false
   }
@@ -169,10 +173,10 @@ onUnmounted(() => {
         class="hud-action-btn"
         :class="{ 'hud-action-btn--daily-done': dailySolvedToday }"
         :disabled="isDailyLoading"
-        :aria-label="dailySolvedToday ? 'Daily puzzle solved' : isDailyLoading ? 'Generating daily puzzle' : 'Play today\'s daily puzzle'"
-        :title="dailySolvedToday ? 'Daily puzzle solved ✓' : isDailyLoading ? 'Generating…' : 'Play today\'s daily puzzle'"
+        :aria-label="dailySolvedToday ? 'Daily puzzle solved' : isDailyLoading ? 'Generating daily puzzle' : isDailyFailed ? 'Daily generation failed — tap to retry' : 'Play today\'s daily puzzle'"
+        :title="dailySolvedToday ? 'Daily puzzle solved ✓' : isDailyLoading ? 'Generating…' : isDailyFailed ? 'Generation failed — tap to retry' : 'Play today\'s daily puzzle'"
         @click="onDaily"
-      >{{ dailySolvedToday ? '✅' : isDailyLoading ? '⏳' : '📅' }}</button>
+      >{{ dailySolvedToday ? '✅' : isDailyLoading ? '⏳' : isDailyFailed ? '⚠️' : '📅' }}</button>
       <button class="hud-action-btn" @click="showStats = true">📊 Stats</button>
       <button class="hud-action-btn" :aria-label="muted ? 'Unmute sounds' : 'Mute sounds'" @click="toggleMute">
         {{ muted ? '🔇' : '🔊' }}
@@ -198,6 +202,7 @@ onUnmounted(() => {
       <button
         v-if="isSolved"
         class="footer-btn footer-btn--next"
+        :class="{ 'footer-btn--next-failed': isGenFailed }"
         :disabled="isGenerating"
         @click="onNext"
       >
@@ -205,6 +210,7 @@ onUnmounted(() => {
           <span class="footer-spinner" />
           Generating…
         </span>
+        <span v-else-if="isGenFailed">⚠ Retry</span>
         <span v-else>Next ➜</span>
       </button>
       <button
@@ -327,6 +333,18 @@ onUnmounted(() => {
 .footer-btn--next:hover:not(:disabled) {
   background: var(--green-dark);
   border-color: var(--green-dark);
+}
+.footer-btn--next-failed {
+  background: var(--bg-card);
+  border-color: var(--amber);
+  color: var(--amber);
+  box-shadow: none;
+  animation: none;
+}
+.footer-btn--next-failed:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  border-color: var(--amber);
+  color: var(--amber);
 }
 .footer-btn--next:disabled {
   animation: none;

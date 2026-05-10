@@ -139,11 +139,16 @@ async function main() {
   const wallStart = Date.now()
 
   // Puzzle mix: [n, count, deadlineMs]
+  // Covers all sizes used in progression (4–10); bookends (4, 10) were
+  // previously missing, so generation failures and hint-engine gaps at
+  // those sizes went undetected.
   const MIX: [number, number, number][] = [
-    [5, 30, 3000],
-    [6, 30, 6000],
-    [7, 30, 8000],
-    [8, 10, 10000],
+    [4,  20,  8000],
+    [5,  30,  3000],
+    [6,  30,  6000],
+    [7,  30,  8000],
+    [8,  10, 10000],
+    [10,  5, 60000],
   ]
 
   const runs: PuzzleRun[] = []

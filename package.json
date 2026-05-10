@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "vue-tsc --noEmit",
     "simulate": "tsx scripts/simulate.ts"
   },
   "dependencies": {
