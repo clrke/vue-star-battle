@@ -25,6 +25,17 @@ export interface Puzzle {
    * Undefined for puzzles that pre-date this field.
    */
   difficulty?: number
+  /**
+   * Number of "lookahead-class" hints (lookahead-mark + deep-lookahead-mark +
+   * fallback) the engine emits while auto-solving the puzzle from an empty
+   * board. Used by progression to scale difficulty across tiers — e.g. tier 0
+   * = 0 lookaheads (pure logic), tier 3 = up to 3 lookaheads. Undefined for
+   * puzzles that pre-date this field.
+   *
+   * If the engine bails before solving (no rule fires), this is set to a
+   * large sentinel so the puzzle is excluded from low-tier filters.
+   */
+  lookaheads?: number
 }
 
 export interface BorderEdges {

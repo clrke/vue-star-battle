@@ -18,7 +18,7 @@ import { lsGet, lsSet } from './lib/safeStorage'
 const game        = useGameStore()
 const progression = useProgressionStore()
 const { isSolved, canUndo, canRedo, lastHint } = storeToRefs(game)
-const { nextHintCost, currentSize } = storeToRefs(progression)
+const { nextHintCost, currentSize, currentMaxLookaheads } = storeToRefs(progression)
 
 const { status: genStatus, generate } = useGenerator()
 const isGenerating = computed(() => genStatus.value === 'generating')
@@ -60,22 +60,30 @@ watch(isSolved, (solved) => {
 
 async function onNext() {
   if (isGenerating.value) return
-  const n = progression.currentSize
+  const n  = progression.currentSize
+  const ml = progression.currentMaxLookaheads
 
-  // Rotate through bundled puzzles before switching to the generator.
-  // `perSize[n].solved` counts total solves at this size, so the first
-  // K solves use bundled[0..K-1] in order; after that we generate.
-  // This ensures every hand-authored puzzle is actually seen by the player.
-  const bundledForSize = puzzles.filter(p => p.n === n)
+  // Rotate through bundled puzzles that match the active lookahead tier
+  // before switching to the generator. `perSize[n].solved` counts total
+  // solves at this size, so the first K solves use bundled[0..K-1] in
+  // order; after that we generate. This ensures every hand-authored
+  // puzzle is actually seen by the player at least once.
+  //
+  // Bundled puzzles with more lookaheads than the current tier permits
+  // are filtered out — at higher tiers they'd be too easy and at lower
+  // tiers they'd violate the cap.
+  const bundledForSize = puzzles.filter(p =>
+    p.n === n && (p.lookaheads ?? 0) <= ml,
+  )
   const solvedAtSize   = progression.perSize[n]?.solved ?? 0
   if (solvedAtSize < bundledForSize.length) {
     game.initBoard(bundledForSize[solvedAtSize])
-    preGenerate(n)   // warm cache so Next after the last bundled is instant
+    preGenerate(n, ml)   // warm cache so Next after the last bundled is instant
     return
   }
 
   try {
-    const puzzle = await generate(n)
+    const puzzle = await generate(n, ml)
     game.initBoard(puzzle)
   } catch { /* failure surfaces via genStatus; user can re-click */ }
 }
@@ -109,22 +117,29 @@ function onVisibility() {
   }
 }
 
-// When the player levels up or down, currentSize changes — immediately start
-// pre-generating for the new size so Next is instant (or near-instant).
-watch(currentSize, (n) => { preGenerate(n) })
+// When the player levels up or down, currentSize OR the lookahead tier
+// changes — immediately start pre-generating for the new (size, tier) pair
+// so Next is instant (or near-instant).
+watch([currentSize, currentMaxLookaheads], ([n, ml]) => { preGenerate(n, ml) })
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('visibilitychange', onVisibility)
-  // Warm up the generator for the player's current level/size
-  preGenerate(progression.currentSize)
+  // Warm up the generator for the player's current level/size + tier
+  preGenerate(progression.currentSize, progression.currentMaxLookaheads)
   // Pre-generate today's daily puzzle in the background
   preGenerateDaily()
   // The store boots with puzzles[0] (a 4×4). If the player has levelled past
-  // that, swap in a size-appropriate puzzle so they aren't stuck on the wrong
-  // grid — bundled match preferred, generated fallback otherwise.
-  if (game.currentPuzzle.n !== progression.currentSize) {
-    const bundled = puzzles.find(p => p.n === progression.currentSize)
+  // that, swap in a tier-and-size-appropriate puzzle so they aren't stuck on
+  // the wrong grid — bundled match preferred, generated fallback otherwise.
+  if (
+    game.currentPuzzle.n !== progression.currentSize ||
+    (game.currentPuzzle.lookaheads ?? 0) > progression.currentMaxLookaheads
+  ) {
+    const bundled = puzzles.find(p =>
+      p.n === progression.currentSize &&
+      (p.lookaheads ?? 0) <= progression.currentMaxLookaheads,
+    )
     if (bundled) game.initBoard(bundled)
     else void onNext()
   }

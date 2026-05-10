@@ -1,15 +1,27 @@
 import type { Puzzle } from '../types/puzzle'
-import { computeDifficulty } from '../solver/difficulty'
+import { computePuzzleStats, UNSOLVABLE_LOOKAHEADS } from '../solver/difficulty'
 
-function withDifficulty(p: Puzzle): Puzzle {
-  return { ...p, difficulty: computeDifficulty(p) }
+function withStats(p: Puzzle): Puzzle {
+  const stats = computePuzzleStats(p)
+  return {
+    ...p,
+    difficulty: stats.fallbacks,
+    lookaheads: stats.solved ? stats.lookaheads : UNSOLVABLE_LOOKAHEADS,
+  }
 }
 
 /**
- * Pre-vetted pure-logic puzzles (difficulty === 0).
- * Found via scripts/find-pure-puzzles.ts.  If you ever swap a grid here, the
- * `withDifficulty` helper will recompute the badge automatically — but please
- * also re-run the find-pure script and keep `difficulty === 0`.
+ * Bundled puzzles. The `withStats` helper auto-tags each one with its
+ * fallback count (`difficulty`) and lookahead-class hint count
+ * (`lookaheads`). The progression code uses `lookaheads` to pick which
+ * bundled puzzles a player sees at each tier — e.g. tier 0 only sees
+ * puzzles with 0 lookaheads, tier 1 sees those with ≤1, and so on.
+ *
+ * The Set was originally hand-curated for `difficulty === 0` via
+ * scripts/find-pure-puzzles.ts. After the lookahead-tier system was
+ * introduced, some entries (notably classic-4a, classic-7c, classic-8c)
+ * have non-zero lookaheads — they're still valid puzzles but only show
+ * up at higher tiers.
  */
 
 const puzzle4x4a: Puzzle = {
@@ -287,4 +299,4 @@ export const puzzles: Puzzle[] = [
   puzzle7x7a, puzzle7x7b, puzzle7x7c,
   puzzle8x8, puzzle8x8b, puzzle8x8c,
   puzzle10x10a, puzzle10x10b, puzzle10x10c,
-].map(withDifficulty)
+].map(withStats)

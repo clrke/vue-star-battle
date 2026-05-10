@@ -6,7 +6,7 @@ import { useProgressionStore } from '../stores/progression'
 const emit = defineEmits<{ close: [] }>()
 
 const progression = useProgressionStore()
-const { level, currentSize, perSize, totalSolved, totalHints, totalTimeMs, currentStreak, bestStreak } = storeToRefs(progression)
+const { level, currentSize, currentTierLabel, perSize, totalSolved, totalHints, totalTimeMs, currentStreak, bestStreak } = storeToRefs(progression)
 
 const ALL_SIZES = [4, 5, 6, 7, 8, 10] as const
 
@@ -33,8 +33,12 @@ function formatLong(ms: number): string {
 const rows = computed(() =>
   ALL_SIZES.map(n => {
     const stats = perSize.value[n]
-    const locked = n > currentSize.value
     const solved = stats?.solved ?? 0
+    // With the tiered progression a size is "locked" only if the player has
+    // never solved any puzzle of that size — reaching higher tiers cycles
+    // back through the smaller sizes, so a level-7 player at 4×4/tier-1 has
+    // already unlocked all sizes from their tier-0 climb.
+    const locked = solved === 0 && n > currentSize.value
     const bestTimeMs = stats?.bestTimeMs ?? null
     const totalTimeForSize = stats?.totalTimeMs ?? 0
     const hintsUsed = stats?.hintsUsed ?? 0
@@ -80,6 +84,10 @@ function onBackdropClick(e: MouseEvent) {
           <div class="overall-stat">
             <span class="overall-stat__value">Lv {{ level }}</span>
             <span class="overall-stat__label">Current Level</span>
+          </div>
+          <div class="overall-stat">
+            <span class="overall-stat__value tier-value">{{ currentTierLabel }}</span>
+            <span class="overall-stat__label">Tier</span>
           </div>
           <div class="overall-stat">
             <span class="overall-stat__value">🔥 {{ currentStreak }}</span>
@@ -200,6 +208,12 @@ function onBackdropClick(e: MouseEvent) {
   font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+.overall-stat__value.tier-value {
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
+  text-align: center;
 }
 
 .overall-stat__label {

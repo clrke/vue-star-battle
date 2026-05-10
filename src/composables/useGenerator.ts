@@ -3,13 +3,18 @@ import type { Puzzle } from '../types/puzzle'
 
 export type GeneratorStatus = 'idle' | 'generating' | 'done' | 'failed'
 
-// Generation now strictly requires pure-logic puzzles (difficulty === 0).
+// Generation enforces the active tier's lookahead cap as well as uniqueness.
 // Budgets sized for ~95 % success rate based on empirical pure-rate per size.
 // 12×12 was removed from progression (see types/progression.ts) — the SA
 // generator cannot find unique 12×12 puzzles in any practical budget.
+//
+// Smaller grids are inherently lookahead-heavy: ~5–12 % of random unique 4×4
+// puzzles are 0-lookahead, so we give them the same budget as 5×5 to allow
+// enough SA retries to find one. Higher tiers (more lookaheads allowed) hit
+// these budgets comfortably; tier 0 at n=4/5 is the worst case.
 const TIME_LIMITS: Record<number, number> = {
-  4:   3_000,
-  5:   5_000,
+  4:   8_000,
+  5:  10_000,
   6:  12_000,
   7:  20_000,
   8:  30_000,
@@ -18,22 +23,33 @@ const TIME_LIMITS: Record<number, number> = {
 
 // ── Module-level background pre-generation singleton ───────────────────────
 // Persists across component re-mounts so the warm cache survives navigation.
+//
+// Cache key is (size, maxLookaheads) — a tier change must invalidate any
+// in-flight or cached puzzle from the previous tier, otherwise the player
+// could level-up and instantly receive an easier-tier puzzle from cache.
 
 let bgWorker: Worker | null = null
 let bgPuzzle: Puzzle | null = null
 let bgSize: number | null = null
+let bgMaxLookaheads: number | null = null
+
+function cacheMatches(n: number, maxLookaheads: number): boolean {
+  return bgSize === n && bgMaxLookaheads === maxLookaheads
+}
 
 /**
- * Start a background worker to pre-generate a puzzle of size n.
- * Idempotent — does nothing if already generating or caching for this size.
+ * Start a background worker to pre-generate a puzzle of size n at the given
+ * lookahead-tier cap. Idempotent — does nothing if already generating or
+ * caching a matching (n, maxLookaheads) pair.
  */
-export function preGenerate(n: number): void {
-  // Don't restart if already generating or already have a cache for this size
-  if (bgSize === n && (bgWorker !== null || bgPuzzle !== null)) return
-  // Terminate any in-flight background gen for a different size
+export function preGenerate(n: number, maxLookaheads = 0): void {
+  // Don't restart if already generating or already have a cache for this combo
+  if (cacheMatches(n, maxLookaheads) && (bgWorker !== null || bgPuzzle !== null)) return
+  // Terminate any in-flight background gen for a different combo
   if (bgWorker) { bgWorker.terminate(); bgWorker = null }
   bgPuzzle = null
   bgSize = n
+  bgMaxLookaheads = maxLookaheads
 
   const w = new Worker(
     new URL('../workers/generator.worker.ts', import.meta.url),
@@ -45,7 +61,7 @@ export function preGenerate(n: number): void {
     if (e.data.type === 'done') bgPuzzle = e.data.puzzle as Puzzle
   }
   w.onerror = () => { bgWorker = null }
-  w.postMessage({ n, timeLimit: TIME_LIMITS[n] ?? 5_000 })
+  w.postMessage({ n, timeLimit: TIME_LIMITS[n] ?? 5_000, maxLookaheads })
 }
 
 export function useGenerator() {
@@ -67,26 +83,27 @@ export function useGenerator() {
   }
 
   /**
-   * Start generating a puzzle of size n.
+   * Start generating a puzzle of size n at the given lookahead-tier cap.
    * Resolves with the puzzle, or rejects after the time limit.
    * Checks the background cache first; if a puzzle is ready, resolves instantly.
    */
-  function generate(n: number): Promise<Puzzle> {
+  function generate(n: number, maxLookaheads = 0): Promise<Puzzle> {
     if (status.value === 'generating') cancel()
 
     // ── Fast path: serve from background cache ─────────────────────────────
-    if (bgPuzzle && bgSize === n) {
+    if (bgPuzzle && cacheMatches(n, maxLookaheads)) {
       const cached = bgPuzzle
       bgPuzzle = null
       bgSize = null
+      bgMaxLookaheads = null
       status.value = 'done'
       // Kick off the next background gen immediately
-      preGenerate(n)
+      preGenerate(n, maxLookaheads)
       return Promise.resolve(cached)
     }
 
     // ── In-flight path: reuse the already-running background worker ─────────
-    if (bgWorker && bgSize === n) {
+    if (bgWorker && cacheMatches(n, maxLookaheads)) {
       // Capture the worker reference once so a synchronous onerror later in
       // this tick can't null `bgWorker` out from under us. (Without this,
       // `bgWorker!.onmessage = …` below could throw on the bang assertion.)
@@ -106,7 +123,7 @@ export function useGenerator() {
             bgPuzzle = null   // consumed by this foreground call
             status.value = 'done'
             resolve(e.data.puzzle as Puzzle)
-            preGenerate(n)   // start next background gen
+            preGenerate(n, maxLookaheads)   // start next background gen
           } else {
             status.value = 'failed'
             reject(new Error('Generation failed'))
@@ -122,6 +139,10 @@ export function useGenerator() {
     }
 
     // ── Cold path: no cache, no in-flight — start a fresh foreground gen ────
+    // Also kill any stale background work for a different (n, maxLookaheads).
+    if (bgWorker) { bgWorker.terminate(); bgWorker = null }
+    bgPuzzle = null
+
     status.value = 'generating'
     elapsed.value = 0
     startedAt = Date.now()
@@ -142,7 +163,7 @@ export function useGenerator() {
           status.value = 'done'
           const puzzle = e.data.puzzle as Puzzle
           resolve(puzzle)
-          preGenerate(n)   // start next in background
+          preGenerate(n, maxLookaheads)   // start next in background
         } else {
           status.value = 'failed'
           reject(new Error('Generation failed'))
@@ -155,7 +176,7 @@ export function useGenerator() {
         reject(new Error('Worker error'))
       }
 
-      worker.postMessage({ n, timeLimit: TIME_LIMITS[n] ?? 8_000 })
+      worker.postMessage({ n, timeLimit: TIME_LIMITS[n] ?? 8_000, maxLookaheads })
     })
   }
 

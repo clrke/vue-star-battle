@@ -1,14 +1,21 @@
 import { generatePuzzle } from '../solver/generator'
-import { computeDifficulty } from '../solver/difficulty'
+import { computePuzzleStats } from '../solver/difficulty'
 import type { Puzzle } from '../types/puzzle'
 
 /**
- * Strict pure-logic generation.
+ * Strict pure-logic generation, optionally constrained by max lookaheads.
  *
- * Only return puzzles with difficulty === 0 (solvable end-to-end without
- * needing the solver-fallback hint).  If the time budget runs out without
- * finding one, fail outright — the UI surfaces "Generation timed out" and
- * the user can retry.  We do NOT ship non-pure puzzles, ever.
+ * Only return puzzles that:
+ *   - have a unique solution (enforced by the SA generator),
+ *   - are auto-solvable by the hint engine (so the player isn't stranded),
+ *   - and emit at most `maxLookaheads` lookahead-class hints
+ *     (lookahead-mark + deep-lookahead-mark + fallback combined) on the
+ *     auto-solve path.
+ *
+ * If the time budget runs out without finding one, fail outright — the UI
+ * surfaces "Generation timed out" and the user can retry.
+ *
+ * `maxLookaheads` defaults to 0 (the strictest tier) for backward compatibility.
  *
  * Optional `seed` field: if provided, Math.random is replaced with a
  * mulberry32 PRNG seeded by that value for the entire generation run.
@@ -26,8 +33,25 @@ function mulberry32(seed: number): () => number {
   }
 }
 
-self.onmessage = (e: MessageEvent<{ n: number; timeLimit: number; seed?: number }>) => {
+interface GenerateMessage {
+  n: number
+  timeLimit: number
+  /**
+   * Maximum lookahead-class hints allowed on the auto-solve path.
+   *   - undefined: no cap — accept any auto-solvable puzzle. Used by the
+   *                daily-puzzle path so the deterministic seed isn't
+   *                rejected for being mildly lookahead-heavy.
+   *   - number:    cap. Used by the level-progression path; the lookup
+   *                table comes from src/types/progression.ts.
+   */
+  maxLookaheads?: number
+  seed?: number
+}
+
+self.onmessage = (e: MessageEvent<GenerateMessage>) => {
   const { n, timeLimit, seed } = e.data
+  const maxLookaheads = e.data.maxLookaheads
+  const enforceCap    = typeof maxLookaheads === 'number'
 
   // Deterministic generation for daily puzzles — safe to set permanently in
   // this worker since it never needs to be restored (workers are single-use).
@@ -43,13 +67,14 @@ self.onmessage = (e: MessageEvent<{ n: number; timeLimit: number; seed?: number 
     const puzzle: Puzzle | null = generatePuzzle(n, subDeadline)
     if (!puzzle) continue
 
-    const d = computeDifficulty(puzzle)
-    if (d === 0) {
-      puzzle.difficulty = 0
-      self.postMessage({ type: 'done', puzzle })
-      return
-    }
-    // Non-pure candidate — discard and try again.
+    const stats = computePuzzleStats(puzzle)
+    if (!stats.solved) continue                          // engine bails on this grid — discard
+    if (enforceCap && stats.lookaheads > maxLookaheads!) continue   // exceeds tier cap — discard
+
+    puzzle.difficulty = stats.fallbacks
+    puzzle.lookaheads = stats.lookaheads
+    self.postMessage({ type: 'done', puzzle })
+    return
   }
 
   self.postMessage({ type: 'failed' })

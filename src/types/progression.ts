@@ -31,30 +31,70 @@ export interface PersistedProgression {
   bestStreak?: number
 }
 
-// ── Level → grid size (level *determines* size; player has no choice) ────────
+// ── Level → (size × lookahead-tier) progression ─────────────────────────────
+//
+// Earlier versions of this game capped progression at level 6 (the largest
+// playable grid, 10×10). After completing all sizes pure-logic, the player
+// hit "Max Level" with nothing left to grind for.
+//
+// The new model adds a *lookahead tier* dimension on top of size. After
+// finishing 10×10 at tier 0 (zero lookahead-class hints permitted), the
+// player wraps back to 4×4 at tier 1 (up to one lookahead allowed), then
+// climbs through the sizes again, and so on.
+//
+//   Tier 0: pure logic — every move falls out of a direct deduction
+//   Tier 1: at most 1 lookahead-class hint on the auto-solve path
+//   Tier 2: at most 2
+//   Tier 3: at most 3
+//
+// Each tier × size combination is one level. With 4 tiers × 6 sizes that's
+// 24 total levels, each requiring a fresh batch of `winsToAdvance`-many
+// solves. The XP reward for a size scales with the tier multiplier so
+// higher tiers also pay off more (and cost more if you take a hint).
+
+const SIZES = [4, 5, 6, 7, 8, 10] as const
+/** How many lookahead-class hints each tier permits on the auto-solve path. */
+const TIER_LOOKAHEADS = [0, 1, 2, 3] as const
 
 /**
- * Step XP curve: each level's threshold equals the cumulative XP earned
- * by completing `winsToAdvance` clean wins at every previous level's size.
- * So at level L, you need (winsToAdvance × cleanReward) more XP to reach L+1.
- *
- * Convention: winsToAdvance = the level's grid size (4 wins at 4×4, 5 at
- * 5×5, …). Hints cost XP, so a hint-heavy solve can leave you below the
- * previous threshold and drop you a level.
+ * Reward and pacing for the *base* tier (tier 0). Higher tiers multiply the
+ * reward via TIER_MULTIPLIER below — the wins-to-advance count stays the
+ * same (= grid size) so each tier is roughly the same number of clean wins.
  */
-// NOTE: 12×12 was removed (level 7, size 12) — the SA generator can't
-// reliably produce a unique 12×12 puzzle within any practical time budget
-// (0/12 successes over 12 min in scripts/gen-bundled.ts retry runs). Players
-// would hit "Generation timed out" reliably at that level. Capping at 10×10
-// until the generator is improved. See git log for the failed attempts.
-const LEVEL_TIERS: Array<{ level: number; size: number; reward: number; winsToAdvance: number }> = [
-  { level: 1, size: 4,  reward: 10,  winsToAdvance: 4  },
-  { level: 2, size: 5,  reward: 25,  winsToAdvance: 5  },
-  { level: 3, size: 6,  reward: 50,  winsToAdvance: 6  },
-  { level: 4, size: 7,  reward: 100, winsToAdvance: 7  },
-  { level: 5, size: 8,  reward: 175, winsToAdvance: 8  },
-  { level: 6, size: 10, reward: 350, winsToAdvance: 10 },
-]
+const SIZE_BASE_REWARD: Record<number, number> = {
+  4: 10, 5: 25, 6: 50, 7: 100, 8: 175, 10: 350,
+}
+const SIZE_WINS_TO_ADVANCE: Record<number, number> = {
+  4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 10: 10,
+}
+const TIER_MULTIPLIER: Record<number, number> = {
+  0: 1, 1: 2, 2: 3, 3: 4,
+}
+
+export interface Tier {
+  level: number
+  size: number
+  /** Lookahead-class hints allowed on the auto-solve path (worker filter). */
+  maxLookaheads: number
+  reward: number
+  winsToAdvance: number
+}
+
+const LEVEL_TIERS: Tier[] = (() => {
+  const out: Tier[] = []
+  for (const ml of TIER_LOOKAHEADS) {
+    for (const size of SIZES) {
+      out.push({
+        level: out.length + 1,
+        size,
+        maxLookaheads: ml,
+        reward: SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[ml],
+        winsToAdvance: SIZE_WINS_TO_ADVANCE[size],
+      })
+    }
+  }
+  return out
+})()
 
 /** Cumulative XP required to *reach* level L (so L1 = 0). */
 export function cumXpForLevel(level: number): number {
@@ -76,38 +116,70 @@ export function levelForXp(xp: number): number {
   return level
 }
 
+function tierForLevel(level: number): Tier {
+  const clamped = Math.min(Math.max(level, 1), LEVEL_TIERS[LEVEL_TIERS.length - 1].level)
+  return LEVEL_TIERS.find(t => t.level === clamped)!
+}
+
 /** Grid size to play at the given level. */
 export function sizeForLevel(level: number): number {
-  const clamped = Math.min(Math.max(level, 1), LEVEL_TIERS[LEVEL_TIERS.length - 1].level)
-  return LEVEL_TIERS.find(t => t.level === clamped)!.size
+  return tierForLevel(level).size
+}
+
+/** Lookahead-tier cap for the given level (0..3). */
+export function maxLookaheadsForLevel(level: number): number {
+  return tierForLevel(level).maxLookaheads
+}
+
+/** Lookahead-tier index for the given level (0..3) — same value as the cap
+ *  in this design but exposed under a tier-shaped name for the UI. */
+export function lookaheadTierForLevel(level: number): number {
+  return tierForLevel(level).maxLookaheads
 }
 
 /** Highest reachable level. */
 export const MAX_LEVEL = LEVEL_TIERS[LEVEL_TIERS.length - 1].level
 
+/** Number of distinct lookahead tiers (0, 1, 2, 3). */
+export const TIER_COUNT = TIER_LOOKAHEADS.length
+
+/** Human-friendly label for a lookahead tier index. */
+export function tierLabel(tier: number): string {
+  switch (tier) {
+    case 0:  return 'Pure logic'
+    case 1:  return '+1 lookahead'
+    case 2:  return '+2 lookaheads'
+    case 3:  return '+3 lookaheads'
+    default: return `+${tier} lookaheads`
+  }
+}
+
 // ── XP rewards ──────────────────────────────────────────────────────────────
 
-const BASE_XP: Record<number, number> = Object.fromEntries(
-  LEVEL_TIERS.map(t => [t.size, t.reward]),
-)
-
-/** XP cost per hint, scaled to the puzzle's clean reward (1/5 of base). */
-function hintCost(n: number): number {
-  const base = BASE_XP[n] ?? 50
-  return Math.max(2, Math.round(base / 5))
+/** XP cost per hint, scaled to the current tier's reward (1/5 of reward). */
+function hintCost(level: number): number {
+  const tier = tierForLevel(level)
+  return Math.max(2, Math.round(tier.reward / 5))
 }
 
 /**
- * Solve award: full base XP for this grid size.
- *
- * Hint costs are debited from the player's XP *immediately* in
- * `recordHintUsed()` (not subtracted again here), so the model is honest:
- * the Hint button shows '−N XP' and applies it on click. The solve reward
- * is then the clean base reward regardless of prior hint use.
+ * Solve award: the *level's* reward (which already factors in the tier
+ * multiplier). Hint costs are debited from the player's XP immediately
+ * in `recordHintUsed()` (not subtracted again here), so the model is
+ * honest: the Hint button shows '−N XP' and applies it on click. The
+ * solve reward is then the clean tier reward regardless of prior hint
+ * use.
  */
-export function xpForSolve(n: number): number {
-  return BASE_XP[n] ?? 50
+export function xpForSolve(level: number): number {
+  return tierForLevel(level).reward
 }
 
-export const baseXpForSize = (n: number): number => BASE_XP[n] ?? 50
-export const hintCostForSize = (n: number): number => hintCost(n)
+export const baseXpForLevel = (level: number): number => tierForLevel(level).reward
+export const hintCostForLevel = (level: number): number => hintCost(level)
+
+// ── Backward-compat helpers (size-only) ─────────────────────────────────────
+// Some callers — primarily test fixtures and stats screens — still ask for
+// a per-size base reward without a tier in hand. Return the tier-0 reward.
+export const baseXpForSize = (n: number): number => SIZE_BASE_REWARD[n] ?? 50
+export const hintCostForSize = (n: number): number =>
+  Math.max(2, Math.round((SIZE_BASE_REWARD[n] ?? 50) / 5))

@@ -6,8 +6,11 @@ import {
   levelForXp,
   sizeForLevel,
   xpForSolve,
-  baseXpForSize,
-  hintCostForSize,
+  baseXpForLevel,
+  hintCostForLevel,
+  maxLookaheadsForLevel,
+  lookaheadTierForLevel,
+  tierLabel,
   MAX_LEVEL,
   type PerSizeStats,
   type PersistedProgression,
@@ -76,6 +79,13 @@ export const useProgressionStore = defineStore('progression', () => {
   const xpToNextLevel     = computed(() => xpAtNextLevel.value - xp.value)
   /** Grid size to play right now — derived from level, no player choice. */
   const currentSize       = computed(() => sizeForLevel(level.value))
+  /** Max lookahead-class hints permitted on the auto-solve path of the next
+   *  puzzle (the worker filters generation by this). */
+  const currentMaxLookaheads = computed(() => maxLookaheadsForLevel(level.value))
+  /** Lookahead-tier index for the current level (0..3). */
+  const currentTier       = computed(() => lookaheadTierForLevel(level.value))
+  /** Human-friendly label for the current lookahead tier ("Pure logic", …). */
+  const currentTierLabel  = computed(() => tierLabel(currentTier.value))
   /** True when the player has reached the highest available level. */
   const isMaxLevel        = computed(() => level.value >= MAX_LEVEL)
   /**
@@ -83,15 +93,15 @@ export const useProgressionStore = defineStore('progression', () => {
    * level. Null at max level. Rounds up; heavy hint use will require more.
    */
   const winsToNextLevel   = computed(() =>
-    isMaxLevel.value ? null : Math.ceil(xpToNextLevel.value / baseXpForSize(currentSize.value)),
+    isMaxLevel.value ? null : Math.ceil(xpToNextLevel.value / baseXpForLevel(level.value)),
   )
   /**
    * XP the player would earn right now if they solved the current puzzle.
    * Decreases with each hint used; can go negative (level-down territory).
    * Null when there is no puzzle in progress.
    */
-  /** Cost in XP of the *next* hint for the current puzzle size. */
-  const nextHintCost      = computed(() => hintCostForSize(currentSize.value))
+  /** Cost in XP of the *next* hint at the current level. */
+  const nextHintCost      = computed(() => hintCostForLevel(level.value))
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -153,7 +163,7 @@ export const useProgressionStore = defineStore('progression', () => {
     // Debit the hint cost from XP immediately. Level cascades automatically
     // via the levelForXp computed, so the player can level *down* on a hint.
     // Floor at 0 so they can't go negative — this is the soft cap.
-    const cost = hintCostForSize(current.value.puzzle.n)
+    const cost = hintCostForLevel(level.value)
     xp.value = Math.max(0, xp.value - cost)
     lastHintDebit.value = { cost, seq: ++hintDebitSeq }
   }
@@ -184,8 +194,11 @@ export const useProgressionStore = defineStore('progression', () => {
     const levelAtStart  = current.value.levelAtStart ?? level.value
 
     // Hint costs were already debited in recordHintUsed(); the solve reward
-    // is the clean base XP for the grid size.
-    const gained     = xpForSolve(n)
+    // is the clean reward for the *level the puzzle was started at* (so the
+    // player gets credit for the tier they actually challenged themselves
+    // with — losing levels mid-puzzle from hint debits doesn't shrink the
+    // payout).
+    const gained     = xpForSolve(levelAtStart)
     // Floor at 0 just in case some other code path subtracts XP later.
     xp.value         = Math.max(0, xp.value + gained)
     totalSolved.value += 1
@@ -245,7 +258,8 @@ export const useProgressionStore = defineStore('progression', () => {
     currentStreak, bestStreak, lastHintDebit,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
-    currentSize, isMaxLevel, winsToNextLevel, nextHintCost,
+    currentSize, currentMaxLookaheads, currentTier, currentTierLabel,
+    isMaxLevel, winsToNextLevel, nextHintCost,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,
     awardSolve, clearCurrent, reset,

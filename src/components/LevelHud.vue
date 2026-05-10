@@ -8,6 +8,7 @@ const progression = useProgressionStore()
 const game        = useGameStore()
 const {
   level, xp, xpIntoLevel, xpForLevelSpan, xpToNextLevel, currentSize,
+  currentTierLabel, currentTier,
   totalSolved, totalHints, totalTimeMs, isMaxLevel, winsToNextLevel,
   currentStreak, bestStreak, lastHintDebit,
 } = storeToRefs(progression)
@@ -64,7 +65,12 @@ function formatTime(ms: number) {
           Lv {{ level }}
           <span v-if="currentStreak >= 3" class="hud-streak" :title="`${currentStreak} clean solves in a row`">🔥{{ currentStreak }}</span>
         </span>
-        <span class="hud-level__max">Playing {{ currentSize }}×{{ currentSize }}</span>
+        <span class="hud-level__max">
+          Playing {{ currentSize }}×{{ currentSize }}
+          <span class="hud-tier" :class="`hud-tier--t${currentTier}`" :title="`Lookahead tier ${currentTier}`">
+            {{ currentTierLabel }}
+          </span>
+        </span>
       </div>
 
       <div class="hud-bar" :class="{ 'hud-bar--max': isMaxLevel }">
@@ -176,7 +182,28 @@ function formatTime(ms: number) {
   font-size: 0.7rem;
   color: var(--text-muted);
   margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
+
+.hud-tier {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.hud-tier--t0 { color: var(--green, #27ae60); border-color: var(--green, #27ae60); }
+.hud-tier--t1 { color: var(--accent); border-color: var(--accent); }
+.hud-tier--t2 { color: var(--amber); border-color: var(--amber); }
+.hud-tier--t3 { color: var(--red); border-color: var(--red); }
 
 .hud-bar {
   flex: 1;
