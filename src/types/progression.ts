@@ -53,12 +53,26 @@ export interface PersistedProgression {
 // higher tiers also pay off more (and cost more if you take a hint).
 
 const SIZES = [4, 5, 6, 7, 8, 10] as const
-/** How many lookahead-class hints each tier permits on the auto-solve path. */
-const TIER_LOOKAHEADS = [0, 1, 2, 3] as const
+
+/**
+ * Lookahead caps per tier. Tiers grow Fibonacci-ish to keep the gap
+ * meaningful as numbers get large — single-step graduation in the
+ * early tiers (where every extra lookahead is a noticeable jump in
+ * difficulty), wider spacing in the late tiers, and an unlimited top
+ * tier that accepts any auto-solvable puzzle. Empirically a 10×10 can
+ * naturally require 20+ lookaheads, so a hard ceiling at 3 would have
+ * left some puzzles forever unreachable.
+ */
+const TIER_LOOKAHEADS = [0, 1, 2, 3, 5, 8, 13, Infinity] as const
+
+/** XP-reward multiplier per tier INDEX (0..N-1). Higher tiers pay
+ *  more — and cost more per hint — so the late game is meaningfully
+ *  more rewarding than grinding tier 0 forever. */
+const TIER_MULTIPLIER = [1, 2, 3, 4, 6, 8, 10, 12] as const
 
 /**
  * Reward and pacing for the *base* tier (tier 0). Higher tiers multiply the
- * reward via TIER_MULTIPLIER below — the wins-to-advance count stays the
+ * reward via TIER_MULTIPLIER above — the wins-to-advance count stays the
  * same (= grid size) so each tier is roughly the same number of clean wins.
  */
 const SIZE_BASE_REWARD: Record<number, number> = {
@@ -67,28 +81,32 @@ const SIZE_BASE_REWARD: Record<number, number> = {
 const SIZE_WINS_TO_ADVANCE: Record<number, number> = {
   4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 10: 10,
 }
-const TIER_MULTIPLIER: Record<number, number> = {
-  0: 1, 1: 2, 2: 3, 3: 4,
-}
 
 export interface Tier {
   level: number
   size: number
-  /** Lookahead-class hints allowed on the auto-solve path (worker filter). */
+  /** Lookahead-class hints allowed on the auto-solve path. Worker
+   *  filter; `Infinity` means any auto-solvable puzzle is accepted. */
   maxLookaheads: number
+  /** Tier index 0..TIER_COUNT-1 — used for UI colour pills and for
+   *  decoupling the visual ordering from the (numeric, possibly
+   *  Infinity) cap value. */
+  tierIndex: number
   reward: number
   winsToAdvance: number
 }
 
 const LEVEL_TIERS: Tier[] = (() => {
   const out: Tier[] = []
-  for (const ml of TIER_LOOKAHEADS) {
+  for (let ti = 0; ti < TIER_LOOKAHEADS.length; ti++) {
+    const ml = TIER_LOOKAHEADS[ti]
     for (const size of SIZES) {
       out.push({
         level: out.length + 1,
         size,
         maxLookaheads: ml,
-        reward: SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[ml],
+        tierIndex: ti,
+        reward: SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[ti],
         winsToAdvance: SIZE_WINS_TO_ADVANCE[size],
       })
     }
@@ -126,15 +144,17 @@ export function sizeForLevel(level: number): number {
   return tierForLevel(level).size
 }
 
-/** Lookahead-tier cap for the given level (0..3). */
+/** Lookahead-tier cap for the given level. Can be Infinity at the
+ *  top tier — the worker treats that as "no cap, accept any
+ *  auto-solvable puzzle". */
 export function maxLookaheadsForLevel(level: number): number {
   return tierForLevel(level).maxLookaheads
 }
 
-/** Lookahead-tier index for the given level (0..3) — same value as the cap
- *  in this design but exposed under a tier-shaped name for the UI. */
+/** Tier index (0..TIER_COUNT-1) for the given level — used by the UI
+ *  to pick a colour pill independent of the (possibly Infinity) cap. */
 export function lookaheadTierForLevel(level: number): number {
-  return tierForLevel(level).maxLookaheads
+  return tierForLevel(level).tierIndex
 }
 
 /** Highest reachable level. */
@@ -143,15 +163,13 @@ export const MAX_LEVEL = LEVEL_TIERS[LEVEL_TIERS.length - 1].level
 /** Number of distinct lookahead tiers (0, 1, 2, 3). */
 export const TIER_COUNT = TIER_LOOKAHEADS.length
 
-/** Human-friendly label for a lookahead tier index. */
-export function tierLabel(tier: number): string {
-  switch (tier) {
-    case 0:  return 'Pure logic'
-    case 1:  return '+1 lookahead'
-    case 2:  return '+2 lookaheads'
-    case 3:  return '+3 lookaheads'
-    default: return `+${tier} lookaheads`
-  }
+/** Human-friendly label for a tier INDEX (0..TIER_COUNT-1). */
+export function tierLabel(tierIndex: number): string {
+  if (tierIndex < 0 || tierIndex >= TIER_LOOKAHEADS.length) return ''
+  const ml = TIER_LOOKAHEADS[tierIndex]
+  if (ml === 0)        return 'Pure logic'
+  if (ml === Infinity) return 'Unlimited'
+  return `≤${ml} lookahead${ml === 1 ? '' : 's'}`
 }
 
 // ── XP rewards ──────────────────────────────────────────────────────────────

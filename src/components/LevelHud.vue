@@ -204,6 +204,17 @@ function formatTime(ms: number) {
 .hud-tier--t1 { color: var(--accent); border-color: var(--accent); }
 .hud-tier--t2 { color: var(--amber); border-color: var(--amber); }
 .hud-tier--t3 { color: var(--red); border-color: var(--red); }
+.hud-tier--t4 { color: var(--orange); border-color: var(--orange); }
+.hud-tier--t5 { color: var(--violet); border-color: var(--violet); }
+.hud-tier--t6 { color: var(--gold); border-color: var(--gold); }
+/* Top tier (unlimited lookaheads) — filled gold pill so it stands out
+   as the endgame badge instead of just another colored outline. */
+.hud-tier--t7 {
+  color: #2a1a00;
+  background: var(--gold);
+  border-color: var(--gold);
+  font-weight: 800;
+}
 
 .hud-bar {
   flex: 1;
