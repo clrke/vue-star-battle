@@ -63,12 +63,30 @@ export const SHIMMER_CYCLE_MS = 800
 export const SHIMMER_STEP_MS = SHIMMER_CYCLE_MS / (IMG_CELLS - 1)
 
 /**
- * Gradient axis tilt, in degrees BELOW horizontal. CSS
- * `linear-gradient(115deg, ...)` = 90° + 25°, so the axis points
- * 25° clockwise from horizontal right. tan(25°) ≈ 0.466 is the
- * vertical-to-horizontal compensation needed for continuity.
+ * CSS gradient angle for `linear-gradient(Xdeg, …)` in Cell.vue. Must
+ * be kept in lockstep with the CSS — every adjustment to the visual
+ * angle of the band changes the per-cell delays needed for continuity.
+ *
+ *   - 90deg  → horizontal axis, no vertical delay component
+ *   - 45deg  → axis pointing upper-right at 45°  (stripe goes /)
+ *   - 115deg → axis pointing lower-right at 25°  (stripe goes \, mild)
+ *   - 135deg → axis pointing lower-right at 45°  (stripe goes \, steep)
  */
-export const SHIMMER_TILT_DEG = 25
+export const SHIMMER_GRADIENT_DEG = 45
+
+/**
+ * Gradient axis tilt, in degrees from horizontal-right. Positive =
+ * axis points below horizontal (toward lower-right); negative = axis
+ * points above horizontal (toward upper-right). tan(tilt) is the
+ * vertical-to-horizontal compensation needed for continuity across
+ * horizontal cell boundaries.
+ *
+ *   CSS 90deg  → tilt   0° → tan = 0
+ *   CSS 115deg → tilt +25° → tan ≈ +0.466
+ *   CSS 135deg → tilt +45° → tan = +1
+ *   CSS 45deg  → tilt −45° → tan = −1
+ */
+export const SHIMMER_TILT_DEG = SHIMMER_GRADIENT_DEG - 90
 const TILT_RAD = SHIMMER_TILT_DEG * Math.PI / 180
 const TAN_TILT = Math.tan(TILT_RAD)
 

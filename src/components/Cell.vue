@@ -468,7 +468,7 @@ onUnmounted(() => {
   opacity: 0;
   transition: opacity 250ms ease-out;
   background: linear-gradient(
-    115deg,
+    45deg,
     transparent       0%,
     transparent      40%,
     rgba(247, 201, 72, 0.55) 50%,

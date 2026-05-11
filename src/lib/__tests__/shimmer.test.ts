@@ -190,11 +190,11 @@ describe('speed', () => {
 
 describe('always-on animation (no ramp-up)', () => {
   it('the bias keeps the animation always in cycle for every supported grid size', () => {
-    // With diagonal delays, the max shimmerIndex on a 10×10 grid is
-    // 9 + 9 × tan(25°) ≈ 13.2 — max delay ≈ 1.06 s. The bias (80 s)
-    // dwarfs this, so every effective delay is comfortably negative.
-    const maxIndex = 9 + 9 * TAN_TILT
-    expect(SHIMMER_DELAY_BIAS_MS).toBeGreaterThan(maxIndex * SHIMMER_STEP_MS)
+    // The max-magnitude shimmerIndex on a 10×10 grid is 9 + 9 × |tan(tilt)|
+    // — for a 45° gradient that's 18 (= 1.44 s of delay), for the older
+    // 115° tilt it was ~13.2 (= 1.06 s). The bias (80 s) dwarfs both.
+    const maxAbsIndex = 9 + 9 * Math.abs(TAN_TILT)
+    expect(SHIMMER_DELAY_BIAS_MS).toBeGreaterThan(maxAbsIndex * SHIMMER_STEP_MS)
   })
 })
 
@@ -206,9 +206,13 @@ describe('CSS-mirrored constants', () => {
     expect(SHIMMER_STEP_MS).toBeGreaterThan(0)
   })
 
-  it('tilt is between 0 and 45 degrees (mild diagonal)', () => {
-    expect(SHIMMER_TILT_DEG).toBeGreaterThan(0)
-    expect(SHIMMER_TILT_DEG).toBeLessThan(45)
+  it('tilt magnitude is at most 45° (so vertical delay step stays ≤ horizontal step)', () => {
+    // tan(tilt) is the per-row delay multiplier. Beyond |45°| the
+    // vertical step would exceed the horizontal step and the wave's
+    // dominant axis would flip — fine in principle but visually
+    // surprising. We cap at exactly 45° (tan = ±1) for symmetric
+    // diagonal sweeps.
+    expect(Math.abs(SHIMMER_TILT_DEG)).toBeLessThanOrEqual(45)
   })
 
   it('keyframe endpoints differ (so something actually animates)', () => {
