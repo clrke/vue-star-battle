@@ -60,6 +60,23 @@ export const SHIMMER_CYCLE_MS = 800
  *  For IMG=11, cycle=800: step = 80ms. */
 export const SHIMMER_STEP_MS = SHIMMER_CYCLE_MS / (IMG_CELLS - 1)
 
+/**
+ * Bias subtracted from every cell's animation-delay so the effective
+ * delay is comfortably negative — the CSS animation engine therefore
+ * treats every cell as having been running since before puzzle-load.
+ * That's the key to the "no ramp-up" trick: when the player completes
+ * a line and the overlay's opacity transitions from 0 to 1, the wave
+ * is already in steady state at whatever phase it happens to be at,
+ * rather than re-entering from a 0 % keyframe.
+ *
+ * The bias must exceed (max shimmerIndex × step) for every supported
+ * grid size. 80 000 ms is 100 cycles, comfortably more than the
+ * widest 10 × 10 grid (max index 9 → 9 × 80 = 720 ms). The bias
+ * cancels modulo the cycle, so the wave's relative phase across cells
+ * is preserved exactly.
+ */
+export const SHIMMER_DELAY_BIAS_MS = 80_000
+
 /** Keyframe endpoints. background-position goes from 100% (cycle 0,
  *  image-left = −(IMG−1) cell-widths, gradient off-left) to 0% (cycle
  *  100%, image-left = 0, gradient off-right). Within each cell the

@@ -217,20 +217,27 @@ onUnmounted(() => {
     @touchcancel="handleTouchCancel"
   >
     <!-- Completion shimmer: a gold bright-band that sweeps directionally
-         across any satisfied row / column / region. Each cell paints a
-         background-image that's 11× the cell width; the per-cell
-         animation-delay = shimmerIndex × 80ms is the algebraically-exact
-         value that makes adjacent cells' gradients align (image-left
-         differs by exactly -1 between neighbours), so they together
-         render ONE continuous gradient band rather than per-cell tiles.
-         See src/lib/shimmer.ts for the math and the property tests.
+         across any satisfied row / column / region.
+         The element is ALWAYS rendered and its animation is ALWAYS
+         running — visibility is gated only by opacity (1 when the cell
+         belongs to a complete line, 0 otherwise). That way the wave
+         doesn't have to "start" the moment the player completes a line;
+         it's already in progress, so the cell just fades in to reveal
+         whatever phase the wave happens to be at right now. No
+         ramp-up, no v-if remount.
+         The animation-delay is biased by SHIMMER_DELAY_BIAS (a large
+         constant — much bigger than any shimmerIndex × step) so every
+         effective delay is negative; the browser treats the animation
+         as having been running since long before puzzle-load, and
+         every cell is in steady state at all times.
          shimmerIndex = col (rows) / row (cols) / Chebyshev from star
-         (regions). Sits under the hint overlays so hints still win
-         when both apply. -->
+         (regions). See src/lib/shimmer.ts for the math + property
+         tests that pin down gradient continuity. Sits under the hint
+         overlays (z=1) and focus / burst (z=3). -->
     <div
-      v-if="inCompleteLine"
       class="cell__hl-complete"
-      :style="({ '--shimmer-delay': `${(shimmerIndex ?? 0) * 80}ms` } as Record<string, string>)"
+      :class="{ 'cell__hl-complete--visible': inCompleteLine }"
+      :style="({ '--shimmer-delay': `${(shimmerIndex ?? 0) * 80 - 80000}ms` } as Record<string, string>)"
       aria-hidden="true"
     />
 
@@ -440,6 +447,17 @@ onUnmounted(() => {
  * gradient stops are placed in a narrow window (47 % − 53 %) so the
  * bright peak is roughly half a cell wide, sweeping the whole line in
  * about 800 ms. See src/lib/shimmer.ts for the math + property tests.
+ *
+ * The element is ALWAYS rendered with the animation always running, so
+ * by the time the player completes a line, the wave is already in
+ * steady state. Visibility is controlled purely by opacity — adding
+ * the `--visible` modifier fades the gold band in over 250 ms,
+ * revealing whatever phase the wave happens to be at, with no
+ * ramp-up. The inline --shimmer-delay subtracts a large bias so every
+ * effective delay is negative; that bias keeps every cell already in
+ * cycle even at puzzle-load, which is critical because animation
+ * timelines are anchored to element mount time.
+ *
  * z-index 0 keeps it above the region background but below the hint
  * overlays (z=1) and focus / burst (z=3). */
 .cell__hl-complete {
@@ -447,6 +465,8 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  opacity: 0;
+  transition: opacity 250ms ease-out;
   background:
     linear-gradient(
       90deg,
@@ -461,10 +481,10 @@ onUnmounted(() => {
   background-repeat: no-repeat;
   animation: shimmer-gold 0.8s linear infinite;
   animation-delay: var(--shimmer-delay, 0ms);
-  /* During the delay phase, hold the 0% keyframe instead of the (default)
-     base bg-position, so the cell aligns with its already-animating
-     neighbours — otherwise the wave reads as broken during ramp-up. */
-  animation-fill-mode: backwards;
+}
+
+.cell__hl-complete--visible {
+  opacity: 1;
 }
 
 @keyframes shimmer-gold {
@@ -476,6 +496,7 @@ onUnmounted(() => {
   .cell__hl-complete {
     animation: none;
     background: rgba(247, 201, 72, 0.20);
+    transition: opacity 250ms ease-out;
   }
 }
 

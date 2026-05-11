@@ -9,6 +9,7 @@ import {
   IMG_CELLS,
   SHIMMER_CYCLE_MS,
   SHIMMER_STEP_MS,
+  SHIMMER_DELAY_BIAS_MS,
   KEYFRAME_START_P,
   KEYFRAME_END_P,
   type Completion,
@@ -128,26 +129,15 @@ describe('gradient continuity ("the shimmer connects")', () => {
     }
   })
 
-  it('during ramp-up the band is OFF-SCREEN for all cells (so no broken-wave is visible)', () => {
-    // Continuity isn't algebraically perfect before T_FULL_WAVE — but
-    // the bright band is still hidden off the left of every cell, so
-    // the user only sees the gentle base gold tint. Verify that the
-    // band never appears inside any cell's visible range during the
-    // ramp.
-    for (let t = 0; t < SHIMMER_STEP_MS; t += 10) {
-      for (let d = 0; d < MAX_OFFSET; d++) {
-        const bandX = bandAbsXAt(d, t) - d   // position within cell d
-        // band x within [0, 1] would mean it's visibly inside that cell.
-        // We allow it to be off-LEFT (negative) or off-RIGHT (>1).
-        // Specifically, during ramp-up all cells should have the band
-        // still approaching from off-left, never already inside.
-        if (bandX >= 0 && bandX <= 1) {
-          // If band IS visible in some cell during ramp-up, that cell
-          // must be cell 0 (the only one animating fully).
-          expect(d, `band visible inside cell ${d} during ramp-up (t=${t})`).toBeLessThanOrEqual(0)
-        }
-      }
-    }
+  it('the bias keeps the animation always in cycle for every supported grid size', () => {
+    // The "no ramp-up" trick depends on the inline animation-delay being
+    // negative for every cell, so the CSS engine treats the animation
+    // as having been running since before puzzle-load. The bias must
+    // exceed max shimmerIndex × step for the largest puzzle (10×10 →
+    // max index 9 → 720 ms). 80 000 ms is 100 cycles — comfortably
+    // above any practical max.
+    const MAX_INDEX_10x10 = 9
+    expect(SHIMMER_DELAY_BIAS_MS).toBeGreaterThan(MAX_INDEX_10x10 * SHIMMER_STEP_MS)
   })
 
   it('step is the algebraically-required cycle / (IMG − 1)', () => {
