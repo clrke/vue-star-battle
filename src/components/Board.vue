@@ -85,10 +85,12 @@ const isHint      = (row: number, col: number) => {
 }
 
 // "Complete" = part of any row/column/region that holds its single
-// non-violated star. Cells in any complete line get a gold shimmer
-// whose phase per cell is the cell's distance from the satisfying star
-// (see src/lib/shimmer.ts for the pure math + the property-based tests
-// that pin down wave direction and continuity).
+// non-violated star. Cells in any complete line get a gold bright-band
+// that sweeps directionally along the line — L→R for rows, T→B for
+// columns, and ripples Chebyshev-style outward for regions. The
+// per-cell phase is computed by shimmerIndexLib (see src/lib/shimmer.ts
+// for the math + the property tests that pin down gradient continuity
+// across cell boundaries).
 const inCompleteLine = (row: number, col: number) =>
   completion.value.rows.has(row) ||
   completion.value.cols.has(col) ||

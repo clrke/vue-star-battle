@@ -216,18 +216,21 @@ onUnmounted(() => {
     @touchend="handleTouchEnd"
     @touchcancel="handleTouchCancel"
   >
-    <!-- Completion shimmer: gold sweep over any row/column/region whose
-         single non-violated star is in place. shimmerIndex = distance
-         from the satisfying star (1-D along a row/column, Chebyshev
-         across a region) — see src/lib/shimmer.ts. The delay is POSITIVE
-         (offset × SHIMMER_STEP_MS), so cells farther from the star
-         start their cycle later and the wave emanates outward from the
-         placed move. Sits under the hint overlays so hints still win
+    <!-- Completion shimmer: a gold bright-band that sweeps directionally
+         across any satisfied row / column / region. Each cell paints a
+         background-image that's 11× the cell width; the per-cell
+         animation-delay = shimmerIndex × 80ms is the algebraically-exact
+         value that makes adjacent cells' gradients align (image-left
+         differs by exactly -1 between neighbours), so they together
+         render ONE continuous gradient band rather than per-cell tiles.
+         See src/lib/shimmer.ts for the math and the property tests.
+         shimmerIndex = col (rows) / row (cols) / Chebyshev from star
+         (regions). Sits under the hint overlays so hints still win
          when both apply. -->
     <div
       v-if="inCompleteLine"
       class="cell__hl-complete"
-      :style="({ '--shimmer-delay': `${(shimmerIndex ?? 0) * 140}ms` } as Record<string, string>)"
+      :style="({ '--shimmer-delay': `${(shimmerIndex ?? 0) * 80}ms` } as Record<string, string>)"
       aria-hidden="true"
     />
 
@@ -427,15 +430,18 @@ onUnmounted(() => {
   border-radius: 6px;
 }
 
-/* Completion shimmer: a static gold tint + a diagonal bright stripe that
- * sweeps L→R across each cell. Phase-shifted per cell via --shimmer-delay
- * (positive — proportional to the cell's distance from the satisfying
- * star) so the wave emanates outward from the placed move. The keyframe
- * runs background-position from +100% (stripe just off-screen left, at
- * cycle 0%) to 0% (stripe just off-screen right, at cycle 100%) — see
- * src/lib/shimmer.ts for the matching constants and the property-based
- * tests that pin these values down. z-index 0 keeps it above the region
- * background but below the hint overlays (z=1) and focus / burst (z=3). */
+/* Completion shimmer: a static gold tint + a directional bright band
+ * that sweeps L→R across rows (T→B across columns). The background
+ * image is 11× the cell width so any one moment shows ~1/11 of the
+ * gradient. Per-cell animation-delay (= shimmerIndex × 80 ms = cycle /
+ * (IMG − 1)) is exactly tuned so cell N+1's image-left is cell N's
+ * image-left − 1 at every moment — the cells' gradients align across
+ * boundaries and together render one continuous wave band. The
+ * gradient stops are placed in a narrow window (47 % − 53 %) so the
+ * bright peak is roughly half a cell wide, sweeping the whole line in
+ * about 800 ms. See src/lib/shimmer.ts for the math + property tests.
+ * z-index 0 keeps it above the region background but below the hint
+ * overlays (z=1) and focus / burst (z=3). */
 .cell__hl-complete {
   position: absolute;
   inset: 0;
@@ -443,18 +449,22 @@ onUnmounted(() => {
   z-index: 0;
   background:
     linear-gradient(
-      115deg,
+      90deg,
       rgba(247, 201, 72, 0.08)  0%,
-      rgba(247, 201, 72, 0.08) 38%,
-      rgba(247, 201, 72, 0.48) 50%,
-      rgba(247, 201, 72, 0.08) 62%,
+      rgba(247, 201, 72, 0.08) 47%,
+      rgba(247, 201, 72, 0.52) 50%,
+      rgba(247, 201, 72, 0.08) 53%,
       rgba(247, 201, 72, 0.08) 100%
     ),
     rgba(247, 201, 72, 0.14);
-  background-size: 260% 100%, 100% 100%;
+  background-size: 1100% 100%, 100% 100%;
   background-repeat: no-repeat;
-  animation: shimmer-gold 2.8s linear infinite;
+  animation: shimmer-gold 0.8s linear infinite;
   animation-delay: var(--shimmer-delay, 0ms);
+  /* During the delay phase, hold the 0% keyframe instead of the (default)
+     base bg-position, so the cell aligns with its already-animating
+     neighbours — otherwise the wave reads as broken during ramp-up. */
+  animation-fill-mode: backwards;
 }
 
 @keyframes shimmer-gold {

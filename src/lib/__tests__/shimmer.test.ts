@@ -2,21 +2,18 @@ import { describe, it, expect } from 'vitest'
 import {
   cellShimmerIndex,
   isInCompleteLine,
-  shimmerVisibilityWindow,
-  stripeXFrac,
+  imageLeftAt,
+  bandAbsXAt,
+  bandPeakTime,
   bgPositionAt,
+  IMG_CELLS,
   SHIMMER_CYCLE_MS,
   SHIMMER_STEP_MS,
-  SHIMMER_VISIBLE_START_FRAC,
-  SHIMMER_VISIBLE_END_FRAC,
   KEYFRAME_START_P,
   KEYFRAME_END_P,
   type Completion,
 } from '../shimmer'
 
-// A simple 5×5 puzzle grid, region ids in [0, 4]. The actual shape of
-// regions doesn't matter for shimmer math except that we know which
-// region each (r, c) belongs to.
 const N = 5
 const SAMPLE_GRID: number[][] = [
   [0, 0, 1, 1, 1],
@@ -30,65 +27,48 @@ function emptyCompletion(): Completion {
   return { rows: new Map(), cols: new Map(), regions: new Map() }
 }
 
+// ── cellShimmerIndex correctness ────────────────────────────────────────
+
 describe('cellShimmerIndex', () => {
   it('returns 0 when the cell is in no completed line', () => {
     const c = emptyCompletion()
     expect(cellShimmerIndex(2, 2, SAMPLE_GRID, c)).toBe(0)
   })
 
-  it('measures distance along a completed row', () => {
-    // Row 1 is complete; its star is at (1, 3).
+  it('row completion: shimmerIndex = column index (so the wave sweeps L→R)', () => {
     const c = emptyCompletion()
     c.rows.set(1, [1, 3])
-    // The star itself is at offset 0.
-    expect(cellShimmerIndex(1, 3, SAMPLE_GRID, c)).toBe(0)
-    // Each step away grows the offset by 1.
-    expect(cellShimmerIndex(1, 2, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(1, 4, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(1, 0, SAMPLE_GRID, c)).toBe(3)
+    for (let col = 0; col < N; col++) {
+      expect(cellShimmerIndex(1, col, SAMPLE_GRID, c)).toBe(col)
+    }
   })
 
-  it('measures distance down a completed column', () => {
+  it('column completion: shimmerIndex = row index (so the wave sweeps T→B)', () => {
     const c = emptyCompletion()
     c.cols.set(2, [3, 2])
-    expect(cellShimmerIndex(3, 2, SAMPLE_GRID, c)).toBe(0)
-    expect(cellShimmerIndex(2, 2, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(4, 2, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(0, 2, SAMPLE_GRID, c)).toBe(3)
+    for (let row = 0; row < N; row++) {
+      expect(cellShimmerIndex(row, 2, SAMPLE_GRID, c)).toBe(row)
+    }
   })
 
-  it('measures Chebyshev distance across a completed region', () => {
-    // Region 0 is complete; its star is at (1, 1).
-    // Region 0 cells per SAMPLE_GRID: (0,0)(0,1)(1,0)(1,1)(2,0).
+  it('region completion: shimmerIndex = Chebyshev distance from the star', () => {
     const c = emptyCompletion()
     c.regions.set(0, [1, 1])
-    expect(cellShimmerIndex(1, 1, SAMPLE_GRID, c)).toBe(0)      // the star
-    expect(cellShimmerIndex(0, 0, SAMPLE_GRID, c)).toBe(1)      // Chebyshev = max(1,1) = 1
+    expect(cellShimmerIndex(1, 1, SAMPLE_GRID, c)).toBe(0)
+    expect(cellShimmerIndex(0, 0, SAMPLE_GRID, c)).toBe(1)
     expect(cellShimmerIndex(0, 1, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(1, 0, SAMPLE_GRID, c)).toBe(1)
     expect(cellShimmerIndex(2, 0, SAMPLE_GRID, c)).toBe(1)
   })
 
-  it('takes the minimum distance when multiple entities overlap', () => {
-    // Row 2 complete (star at (2, 4)) AND region 3 complete (star at (3, 0)).
-    // Cell (2, 1) is in row 2 (dist 3) and region 3 (Chebyshev 1) — should pick 1.
+  it('row beats column when a cell sits in both completed entities', () => {
+    // Row 2 complete AND col 1 complete. (2, 1) is in both — it should
+    // pick up the ROW's continuity (offset = col = 1), not the
+    // column's (which would be offset = row = 2). Otherwise the row's
+    // gradient would be broken at this cell.
     const c = emptyCompletion()
     c.rows.set(2, [2, 4])
-    c.regions.set(3, [3, 0])
+    c.cols.set(1, [2, 1])
     expect(cellShimmerIndex(2, 1, SAMPLE_GRID, c)).toBe(1)
-  })
-
-  it('always assigns offset 0 to the cell that holds the satisfying star', () => {
-    // Whichever entity completes, the star anchor is at distance 0 from
-    // itself by all three metrics — so the ripple visibly originates
-    // there.
-    for (const [r, c] of [[0, 0], [1, 3], [3, 2], [4, 4]]) {
-      const comp = emptyCompletion()
-      comp.rows.set(r, [r, c])
-      comp.cols.set(c, [r, c])
-      comp.regions.set(SAMPLE_GRID[r][c], [r, c])
-      expect(cellShimmerIndex(r, c, SAMPLE_GRID, comp)).toBe(0)
-    }
   })
 })
 
@@ -101,105 +81,135 @@ describe('isInCompleteLine', () => {
   })
 })
 
+// ── Gradient continuity ─────────────────────────────────────────────────
+
+describe('gradient continuity ("the shimmer connects")', () => {
+  /**
+   * The whole point of the directional design: for every adjacent cell
+   * pair along a completed line (offset d and d+1), the second cell's
+   * `image-left` is exactly the first cell's `image-left − 1` at every
+   * moment. That's the algebraic condition for the gradient to render
+   * as ONE continuous band rather than per-cell tiles.
+   *
+   * The continuity property kicks in once all cells in the line have
+   * started animating — i.e. after the largest offset's delay has
+   * elapsed. Before that the right-most cells are pinned to the 0%
+   * keyframe by `animation-fill-mode: backwards`, which actually
+   * KEEPS the wave coherent (no visible band on those cells; the band
+   * is still off-left). We sample from `MAX_OFFSET × step` onward.
+   */
+  const MAX_OFFSET = 9
+  const T_FULL_WAVE = MAX_OFFSET * SHIMMER_STEP_MS
+
+  it('once the wave is fully started, adjacent cells have image-left differing by exactly -1', () => {
+    for (let t = T_FULL_WAVE; t < T_FULL_WAVE + SHIMMER_CYCLE_MS * 2; t += 23) {
+      for (let d = 0; d < MAX_OFFSET; d++) {
+        const lA = imageLeftAt(d,     t)
+        const lB = imageLeftAt(d + 1, t)
+        expect(lB - lA,
+          `at t=${t}, offsets ${d}↔${d + 1}: image-left diff = ${(lB - lA).toFixed(6)}, expected -1`,
+        ).toBeCloseTo(-1, 6)
+      }
+    }
+  })
+
+  it('once fully started, the bright band is at the SAME absolute screen position when viewed from either side of a cell boundary', () => {
+    // bandAbsXAt(d, t) gives the band's centre in row-absolute units.
+    // If continuous, cell d's idea of where the band is must match cell
+    // d+1's idea, even though they paint independent gradient instances.
+    for (let t = T_FULL_WAVE; t < T_FULL_WAVE + SHIMMER_CYCLE_MS * 2; t += 31) {
+      for (let d = 0; d < MAX_OFFSET; d++) {
+        const fromA = bandAbsXAt(d,     t)
+        const fromB = bandAbsXAt(d + 1, t)
+        expect(fromB,
+          `at t=${t}, offsets ${d}↔${d + 1}: absolute band x differs (${fromA.toFixed(4)} vs ${fromB.toFixed(4)})`,
+        ).toBeCloseTo(fromA, 5)
+      }
+    }
+  })
+
+  it('during ramp-up the band is OFF-SCREEN for all cells (so no broken-wave is visible)', () => {
+    // Continuity isn't algebraically perfect before T_FULL_WAVE — but
+    // the bright band is still hidden off the left of every cell, so
+    // the user only sees the gentle base gold tint. Verify that the
+    // band never appears inside any cell's visible range during the
+    // ramp.
+    for (let t = 0; t < SHIMMER_STEP_MS; t += 10) {
+      for (let d = 0; d < MAX_OFFSET; d++) {
+        const bandX = bandAbsXAt(d, t) - d   // position within cell d
+        // band x within [0, 1] would mean it's visibly inside that cell.
+        // We allow it to be off-LEFT (negative) or off-RIGHT (>1).
+        // Specifically, during ramp-up all cells should have the band
+        // still approaching from off-left, never already inside.
+        if (bandX >= 0 && bandX <= 1) {
+          // If band IS visible in some cell during ramp-up, that cell
+          // must be cell 0 (the only one animating fully).
+          expect(d, `band visible inside cell ${d} during ramp-up (t=${t})`).toBeLessThanOrEqual(0)
+        }
+      }
+    }
+  })
+
+  it('step is the algebraically-required cycle / (IMG − 1)', () => {
+    expect(SHIMMER_STEP_MS).toBeCloseTo(SHIMMER_CYCLE_MS / (IMG_CELLS - 1), 9)
+  })
+})
+
 // ── Wave direction ──────────────────────────────────────────────────────
 
 describe('wave direction', () => {
   /**
-   * The star (offset 0) should see the bright stripe FIRST. Adjacent cells
-   * (offset 1) should see it later. Far cells should see it last. This is
-   * the natural "ripple emanates outward from the placed move" feeling.
-   *
-   * With positive animation-delay (= offset × SHIMMER_STEP_MS) and a
-   * keyframe that sweeps the bright stripe through the cell, the cell's
-   * stripe-at-center moment is at delay + cycle/2. So time-to-centre is
-   * monotonically increasing with offset.
+   * With positive delay step, cell N+1 lags cell N. The band reaches
+   * cell N first; later it reaches cell N+1. Result: the wave moves
+   * along the line in the direction of increasing shimmerIndex —
+   * L→R for rows, T→B for columns.
    */
-  it('the bright stripe reaches each cell later, the further it sits from the star', () => {
-    const offsets = [0, 1, 2, 3, 4]
-    const timesToCentre = offsets.map(off => shimmerVisibilityWindow(off))
-      .map(w => (w.start + w.end) / 2)
-    for (let i = 1; i < timesToCentre.length; i++) {
-      expect(timesToCentre[i],
-        `centre time at offset ${offsets[i]} must be later than at offset ${offsets[i - 1]}`,
-      ).toBeGreaterThan(timesToCentre[i - 1])
+  it('the band reaches each cell later, the higher its shimmer offset', () => {
+    const peaks = [0, 1, 2, 3, 4].map(bandPeakTime)
+    for (let i = 1; i < peaks.length; i++) {
+      expect(peaks[i],
+        `peak at offset ${i} must be later than at offset ${i - 1}`,
+      ).toBeGreaterThan(peaks[i - 1])
     }
   })
 
-  it('within each cell, the bright stripe sweeps left → right over time', () => {
-    // Sample the stripe x-position at evenly spaced times inside the
-    // first cell's visible window. Each successive sample should be at
-    // a strictly larger x — left-to-right motion within the cell.
-    const window = shimmerVisibilityWindow(0)
-    const samples = 10
-    const xs: number[] = []
-    for (let i = 0; i <= samples; i++) {
-      const t = window.start + (window.end - window.start) * (i / samples)
-      xs.push(stripeXFrac(0, t))
-    }
-    for (let i = 1; i < xs.length; i++) {
-      expect(xs[i],
-        `stripe x must increase L→R; got x[${i - 1}]=${xs[i - 1].toFixed(3)} x[${i}]=${xs[i].toFixed(3)}`,
-      ).toBeGreaterThanOrEqual(xs[i - 1])
+  it('the wave traverses one cell per SHIMMER_STEP_MS', () => {
+    // Successive peak times differ by exactly one step.
+    for (let i = 1; i < 5; i++) {
+      const dt = bandPeakTime(i) - bandPeakTime(i - 1)
+      expect(dt).toBeCloseTo(SHIMMER_STEP_MS, 6)
     }
   })
 
-  it('stripe enters near x = 0 at start of visible window and exits near x = 1 at end', () => {
-    const w = shimmerVisibilityWindow(0)
-    expect(stripeXFrac(0, w.start)).toBeCloseTo(0, 5)
-    expect(stripeXFrac(0, w.end)).toBeCloseTo(1, 5)
-  })
-})
-
-// ── Wave continuity ─────────────────────────────────────────────────────
-
-describe('wave continuity', () => {
-  /**
-   * For the wave to "connect" across cells, two consecutive cells (offset
-   * differs by 1) must have overlapping visibility windows — otherwise
-   * the eye sees a gap.
-   *
-   * Concretely: cell d's window ends at d×STEP + END_FRAC×CYCLE; cell d+1's
-   * window starts at (d+1)×STEP + START_FRAC×CYCLE. Overlap requires:
-   *   d×STEP + END_FRAC×CYCLE  >  (d+1)×STEP + START_FRAC×CYCLE
-   *   (END_FRAC − START_FRAC)×CYCLE  >  STEP
-   *   visible-span > step
-   */
-  it('adjacent cells have overlapping visibility windows', () => {
-    const w0 = shimmerVisibilityWindow(0)
-    const w1 = shimmerVisibilityWindow(1)
-    const overlap = w0.end - w1.start
-    expect(overlap,
-      `expected w0=[${w0.start},${w0.end}] and w1=[${w1.start},${w1.end}] to overlap`,
-    ).toBeGreaterThan(0)
-  })
-
-  it('the overlap is at least the step duration (so the wave is dense, not strobing)', () => {
-    // If overlap < STEP, the wave has visible gaps as it crosses cell
-    // boundaries. We want overlap ≥ STEP so by the time one cell's
-    // stripe is exiting, the next one's is already meaningfully visible.
-    const w0 = shimmerVisibilityWindow(0)
-    const w1 = shimmerVisibilityWindow(1)
-    const overlap = w0.end - w1.start
-    expect(overlap).toBeGreaterThanOrEqual(SHIMMER_STEP_MS)
-  })
-
-  it('the wave does not stall: visible span exceeds the step', () => {
-    const visibleSpan = (SHIMMER_VISIBLE_END_FRAC - SHIMMER_VISIBLE_START_FRAC) * SHIMMER_CYCLE_MS
-    expect(visibleSpan).toBeGreaterThan(SHIMMER_STEP_MS)
-  })
-
-  it('every neighbouring pair (offsets 0..9) overlaps', () => {
-    for (let d = 0; d < 9; d++) {
-      const wA = shimmerVisibilityWindow(d)
-      const wB = shimmerVisibilityWindow(d + 1)
-      expect(wA.end,
-        `pair (${d}, ${d + 1}) has no overlap: wA=[${wA.start},${wA.end}] wB=[${wB.start},${wB.end}]`,
-      ).toBeGreaterThan(wB.start)
+  it('absolute band x advances monotonically along the line as time progresses', () => {
+    // Sample the band's absolute position at fixed cell (offset 4)
+    // across increasing t; it must move right (increasing x) over time.
+    let prev = -Infinity
+    for (let t = 0; t < SHIMMER_CYCLE_MS; t += 20) {
+      const x = bandAbsXAt(4, t)
+      expect(x,
+        `at t=${t}, band moved backward: prev=${prev.toFixed(3)} now=${x.toFixed(3)}`,
+      ).toBeGreaterThanOrEqual(prev - 1e-9)
+      prev = x
     }
   })
 })
 
-// ── CSS / math consistency ──────────────────────────────────────────────
+// ── Speed sanity ────────────────────────────────────────────────────────
+
+describe('speed', () => {
+  it('the wave traverses an 8-cell row in under one second', () => {
+    // First cell peaks at bandPeakTime(0); last cell peaks at bandPeakTime(7).
+    const traversal = bandPeakTime(7) - bandPeakTime(0)
+    expect(traversal).toBeLessThan(1000)
+  })
+
+  it('cycle is brisk — under 1 second', () => {
+    expect(SHIMMER_CYCLE_MS).toBeLessThanOrEqual(1000)
+  })
+})
+
+// ── CSS-mirror consistency ──────────────────────────────────────────────
 
 describe('CSS-mirrored constants', () => {
   it('cycle and step are positive', () => {
@@ -207,22 +217,19 @@ describe('CSS-mirrored constants', () => {
     expect(SHIMMER_STEP_MS).toBeGreaterThan(0)
   })
 
-  it('visible window fractions are within [0, 1] and ordered', () => {
-    expect(SHIMMER_VISIBLE_START_FRAC).toBeGreaterThanOrEqual(0)
-    expect(SHIMMER_VISIBLE_END_FRAC).toBeLessThanOrEqual(1)
-    expect(SHIMMER_VISIBLE_END_FRAC).toBeGreaterThan(SHIMMER_VISIBLE_START_FRAC)
+  it('IMG is large enough that the per-cell visible slice (1 / IMG) is small', () => {
+    // We need IMG >> 1 so the bright band (only a few percent of the
+    // gradient) doesn't dominate a whole cell. 4 is comfortably above
+    // "tile-per-cell".
+    expect(IMG_CELLS).toBeGreaterThanOrEqual(4)
   })
 
-  it('keyframes sweep from offscreen-left to offscreen-right (so stripe goes L→R)', () => {
-    // KEYFRAME_START_P should place the stripe just OFF-SCREEN LEFT, and
-    // KEYFRAME_END_P should place it just OFF-SCREEN RIGHT.
-    expect(stripeXFrac(0, 0)).toBeLessThan(0)                          // off left at t=0
-    expect(stripeXFrac(0, SHIMMER_CYCLE_MS - 0.001)).toBeGreaterThan(1) // off right at t≈end
-    // And consistency check: bgPositionAt(0, 0) = KEYFRAME_START_P,
-    // bgPositionAt(0, CYCLE) wraps back to KEYFRAME_START_P (since the
-    // animation is `infinite`, but at the very end of one cycle the
-    // value approaches KEYFRAME_END_P).
-    expect(bgPositionAt(0, 0)).toBeCloseTo(KEYFRAME_START_P, 5)
+  it('keyframe endpoints differ (so something actually animates)', () => {
+    expect(KEYFRAME_START_P).not.toBe(KEYFRAME_END_P)
+  })
+
+  it('bgPositionAt at cycle endpoints matches the keyframe values', () => {
+    expect(bgPositionAt(0, 0)).toBeCloseTo(KEYFRAME_START_P, 6)
     expect(bgPositionAt(0, SHIMMER_CYCLE_MS - 0.001)).toBeCloseTo(KEYFRAME_END_P, 1)
   })
 })

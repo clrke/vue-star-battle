@@ -2,11 +2,37 @@
  * Pure math for the completion shimmer effect (see Cell.vue
  * @keyframes shimmer-gold + .cell__hl-complete styles).
  *
+ * Design — continuous directional gradient.
+ *
+ *   Each cell paints its own background-image, but the image is much
+ *   wider than the cell (IMG × cell-width) so that any one moment only
+ *   shows ~1/IMG of the gradient. The per-cell animation-delay is sized
+ *   so that, at every wall-clock time T, cell N+1's `image-left` is
+ *   exactly cell N's `image-left − 1`. That means cell N+1 picks up
+ *   visually where cell N leaves off — together the cells render ONE
+ *   continuous gradient band that sweeps across the line without
+ *   breaking at cell boundaries.
+ *
+ *   The trick is the delay-step formula:
+ *     step = cycle / (IMG - 1)
+ *   Bigger IMG → smaller step → faster wave through the line; the
+ *   gradient stops are kept narrow so the bright peak is ~half a cell
+ *   wide.
+ *
+ *   Wave direction:
+ *     - row    → L→R, shimmerIndex = col
+ *     - column → T→B, shimmerIndex = row
+ *     - region → ripples from the star (Chebyshev distance). Region
+ *               cells aren't a line, so gradient continuity doesn't
+ *               apply — the index just spaces out the per-cell phases.
+ *
+ *   Priority for cells in multiple completed entities: row > col >
+ *   region.
+ *
  * All values here must stay in lockstep with the CSS — the tests in
- * src/lib/__tests__/shimmer.test.ts assert structural properties of the
- * wave (continuity, direction) using these constants, so changes to
- * either the keyframes or background-size in Cell.vue must be mirrored
- * here.
+ * src/lib/__tests__/shimmer.test.ts assert continuity using these
+ * constants, so any change to the keyframe / bg-size / animation
+ * duration in Cell.vue must be mirrored here.
  */
 
 export type StarPos = [number, number]
@@ -19,74 +45,42 @@ export interface Completion {
 
 // ── CSS-mirrored constants ───────────────────────────────────────────────
 
-/** Total length of one shimmer cycle, ms. Matches the `animation: ... 2.8s`
+/** Background-image width as a multiple of cell-width. Matches the
+ *  `background-size: 1100% 100%` declaration on `.cell__hl-complete`. */
+export const IMG_CELLS = 11
+
+/** Total length of one sweep, ms. Matches the `animation: ... 0.8s`
  *  declaration on `.cell__hl-complete`. */
-export const SHIMMER_CYCLE_MS = 2800
+export const SHIMMER_CYCLE_MS = 800
 
-/** Delay step per shimmerIndex unit, ms. Matches the inline style
- *  `animation-delay: ${shimmerIndex * 140}ms` in Cell.vue's template. */
-export const SHIMMER_STEP_MS = 140
-
-/**
- * Background image is sized 260% × 100% of the cell. The bright stripe in
- * the gradient is centered at the image's 50% mark.
+/** Delay step per shimmerIndex unit, ms. Derived: step = cycle /
+ *  (IMG − 1). This is the EXACT value that aligns adjacent cells'
+ *  gradients so the band traverses cell boundaries seamlessly.
  *
- * `background-position: P%` places image-left at  P × (container − image) / 100
- *                                                = −1.6 P × container-width.
- *
- * So the stripe (image-left + 130%) is at container-x = (−1.6 P + 130) × CW.
- * The stripe is visible within the cell when 0 ≤ x ≤ CW, i.e. P ∈ [18.75 %,
- * 81.25 %].
- *
- * The keyframes (see CSS below) sweep P from KEYFRAME_START_P (cycle 0%)
- * to KEYFRAME_END_P (cycle 100 %) linearly. Solving for the cycle fraction
- * that maps to each visibility endpoint gives the visible window below.
- */
-export const BG_IMAGE_OVER_CELL = 2.6                  // background-size: 260%
-const STRIPE_CENTER_IN_IMAGE = 0.5
-// Stripe x (in cell-fraction units) = (P/100) × (1 − IMG) + STRIPE_CENTER × IMG.
-// Solving for P at stripe_x = 0 (left edge) and stripe_x = 1 (right edge):
-//   stripe_x = 0  →  P = (STRIPE_CENTER × IMG) / (IMG − 1) × 100
-//   stripe_x = 1  →  P = (STRIPE_CENTER × IMG − 1) / (IMG − 1) × 100
-// With STRIPE_CENTER = 0.5, IMG = 2.6 → P_LEFT = 81.25 %, P_RIGHT = 18.75 %.
-const VISIBLE_P_LEFT  = 100 * (STRIPE_CENTER_IN_IMAGE * BG_IMAGE_OVER_CELL)         / (BG_IMAGE_OVER_CELL - 1)
-const VISIBLE_P_RIGHT = 100 * (STRIPE_CENTER_IN_IMAGE * BG_IMAGE_OVER_CELL - 1)     / (BG_IMAGE_OVER_CELL - 1)
+ *  For IMG=11, cycle=800: step = 80ms. */
+export const SHIMMER_STEP_MS = SHIMMER_CYCLE_MS / (IMG_CELLS - 1)
 
-/** Keyframe endpoints, as the CSS `background-position` percentage.
- *  Sweeping HIGH → LOW makes the stripe enter at the left of the cell and
- *  exit on the right (the natural L→R reading direction). The constants
- *  are picked so the visible window is centered in the cycle (18.75 %
- *  through to 81.25 %), with equal "approaching" and "departed" tails. */
-export const KEYFRAME_START_P = 100   // bg-pos at cycle 0 %   (stripe just off-screen left)
-export const KEYFRAME_END_P   = 0     // bg-pos at cycle 100 % (stripe just off-screen right)
-
-/** Cycle fraction (0–1) at which the bright stripe first becomes visible
- *  (touches the cell's left edge). With the keyframe running 100% → 0%
- *  this is the cycle position where P = P_LEFT = 81.25 %, i.e.
- *  (100 − 81.25) / 100 = 0.1875. */
-export const SHIMMER_VISIBLE_START_FRAC =
-  (KEYFRAME_START_P - VISIBLE_P_LEFT) / (KEYFRAME_START_P - KEYFRAME_END_P)
-/** Cycle fraction (0–1) at which the bright stripe last visible (touches
- *  the cell's right edge). Likewise: P = P_RIGHT = 18.75 % → 0.8125. */
-export const SHIMMER_VISIBLE_END_FRAC =
-  (KEYFRAME_START_P - VISIBLE_P_RIGHT) / (KEYFRAME_START_P - KEYFRAME_END_P)
+/** Keyframe endpoints. background-position goes from 100% (cycle 0,
+ *  image-left = −(IMG−1) cell-widths, gradient off-left) to 0% (cycle
+ *  100%, image-left = 0, gradient off-right). Within each cell the
+ *  bright band sweeps L→R; combined with the positive per-cell delay,
+ *  the band traverses the whole line L→R as one continuous wave. */
+export const KEYFRAME_START_P = 100
+export const KEYFRAME_END_P   = 0
 
 // ── Per-cell shimmer offset ──────────────────────────────────────────────
 
 /**
- * For a cell at (row, col) on the given puzzle grid, return how many
- * SHIMMER_STEP_MS the cell's animation should be delayed relative to the
- * star that originated each completed entity passing through it.
+ * For a cell at (row, col), return the shimmer offset (number of
+ * SHIMMER_STEP_MS to delay this cell's animation by).
  *
- * Each completed entity contributes a distance:
- *   - completed row    → |col − starCol|              (1-D along the row)
- *   - completed column → |row − starRow|              (1-D down the column)
- *   - completed region → max(|Δrow|, |Δcol|)          (Chebyshev — square)
+ *   - completed row    → offset = col       (wave traverses L→R)
+ *   - completed column → offset = row       (wave traverses T→B)
+ *   - completed region → offset = Chebyshev distance from the star
  *
- * The cell's offset is the MINIMUM of those distances, so it shimmers
- * when the nearest wave reaches it. Cells that aren't part of any
- * completed entity return 0 (the value is harmless when the overlay
- * isn't rendered).
+ * Priority: row > col > region. A cell that's in a complete row uses
+ * the row index regardless of column completion, so the gradient
+ * continuity in that row isn't broken by the column's different phase.
  */
 export function cellShimmerIndex(
   row: number,
@@ -94,14 +88,11 @@ export function cellShimmerIndex(
   grid: number[][],
   completion: Completion,
 ): number {
-  let best = Infinity
-  const rowAnchor = completion.rows.get(row)
-  if (rowAnchor) best = Math.min(best, Math.abs(col - rowAnchor[1]))
-  const colAnchor = completion.cols.get(col)
-  if (colAnchor) best = Math.min(best, Math.abs(row - colAnchor[0]))
+  if (completion.rows.has(row)) return col
+  if (completion.cols.has(col)) return row
   const regAnchor = completion.regions.get(grid[row][col])
-  if (regAnchor) best = Math.min(best, Math.max(Math.abs(row - regAnchor[0]), Math.abs(col - regAnchor[1])))
-  return Number.isFinite(best) ? best : 0
+  if (regAnchor) return Math.max(Math.abs(row - regAnchor[0]), Math.abs(col - regAnchor[1]))
+  return 0
 }
 
 /** Whether the cell belongs to ANY completed row, column, or region. */
@@ -116,49 +107,65 @@ export function isInCompleteLine(
       || completion.regions.has(grid[row][col])
 }
 
-// ── Visibility windows ───────────────────────────────────────────────────
+// ── Gradient state (for tests + visualization) ──────────────────────────
 
 /**
- * Wall-clock window during which the bright stripe is visible inside a
- * cell with the given shimmer offset, on the cell's first animation cycle
- * (which is when v-if mounts the overlay element).
+ * `background-position` value (as the same percentage CSS sees) for a
+ * cell at the given shimmer offset, at wall-clock time tMs.
  *
- * The offset shifts the entire cycle by `offset * SHIMMER_STEP_MS`, so
- * the visibility window slides forward by that same amount.
- */
-export function shimmerVisibilityWindow(offset: number): { start: number; end: number } {
-  const delay = offset * SHIMMER_STEP_MS
-  return {
-    start: delay + SHIMMER_VISIBLE_START_FRAC * SHIMMER_CYCLE_MS,
-    end:   delay + SHIMMER_VISIBLE_END_FRAC   * SHIMMER_CYCLE_MS,
-  }
-}
-
-/**
- * Pure CSS `background-position` for a given offset at wall-clock time T,
- * assuming the cell's overlay was mounted at T = 0 (so cycle elapsed =
- * T − offset×SHIMMER_STEP_MS, clamped to ≥ 0 before any cycle starts).
+ * This is a LINEAR extrapolation rather than a modulo-wrap of the
+ * cycle, deliberately. It represents the "ideal" continuous wave the
+ * design is meant to render, and that's the model the property tests
+ * in shimmer.test.ts reason about: image-left must differ by exactly
+ * −1 between adjacent cells at every time, including times before some
+ * cells' animation-delay has expired.
  *
- * Used by the visualization script and by tests to reason about the
- * stripe's screen position at sampled timestamps without spinning up a
- * real browser.
+ * CSS approximates this by clamping at the 0% frame until each cell's
+ * delay expires and by wrapping every cycle, so the visible gradient
+ * briefly tears once per cycle as a new band enters at cell 0. The
+ * lib's extrapolation hides that seam so the continuity invariant
+ * holds unconditionally — what the test asserts is the design's
+ * underlying motion, not the per-frame rasterisation.
  */
 export function bgPositionAt(offset: number, tMs: number): number {
   const elapsed = tMs - offset * SHIMMER_STEP_MS
-  if (elapsed < 0) return KEYFRAME_START_P
-  const frac = (elapsed % SHIMMER_CYCLE_MS) / SHIMMER_CYCLE_MS
+  const frac = elapsed / SHIMMER_CYCLE_MS
   return KEYFRAME_START_P + frac * (KEYFRAME_END_P - KEYFRAME_START_P)
 }
 
 /**
- * Stripe centre's x position WITHIN the cell, as a fraction of cell width
- * (0 = left edge, 1 = right edge). Values outside [0, 1] mean the stripe
- * is off-screen.
+ * `image-left` in cell-width units. With container-width = 1 and
+ * image-width = IMG, the CSS formula is image-left = bg-pos × (1 − IMG) / 100.
+ *
+ * For the gradient to read as one continuous band across the line, we
+ * need imageLeftAt(offset + 1, t) − imageLeftAt(offset, t) === −1 at
+ * every time t — the test "gradient continuity" pins this down.
  */
-export function stripeXFrac(offset: number, tMs: number): number {
-  const p = bgPositionAt(offset, tMs)
-  // image-left (frac of cell width) = (P / 100) × (1 − BG_IMAGE_OVER_CELL)
-  // stripe x = image-left + STRIPE_CENTER_IN_IMAGE × BG_IMAGE_OVER_CELL
-  const imageLeftFrac = (p / 100) * (1 - BG_IMAGE_OVER_CELL)
-  return imageLeftFrac + STRIPE_CENTER_IN_IMAGE * BG_IMAGE_OVER_CELL
+export function imageLeftAt(offset: number, tMs: number): number {
+  return bgPositionAt(offset, tMs) * (1 - IMG_CELLS) / 100
+}
+
+/**
+ * Bright-band position in ABSOLUTE row coordinates (where cell-col is
+ * at integer screen-x = col). The band centre is at image-x = IMG/2,
+ * so in container-x (within cell at given offset) it sits at
+ * imageLeft + IMG/2. The "line index" parameter is the cell's position
+ * along the completed line — same as shimmerIndex for the row/col
+ * cases.
+ */
+export function bandAbsXAt(lineIndex: number, tMs: number): number {
+  return lineIndex + imageLeftAt(lineIndex, tMs) + IMG_CELLS / 2
+}
+
+/** Time at which the bright band's centre passes through cell at the
+ *  given shimmer offset. Used by the "wave direction" tests. */
+export function bandPeakTime(offset: number): number {
+  // image-left at peak = −IMG/2 + 0.5 (band centre at container-x 0.5).
+  // Solve for cycle fraction: image-left = bg-pos × (1−IMG)/100.
+  //   bg-pos at peak = (IMG/2 − 0.5) × 100 / (IMG − 1).
+  //   For IMG=11: bg-pos = (5.5 − 0.5) × 100 / 10 = 50%.
+  // Cycle fraction at peak = (KEYFRAME_START − bg-pos) / (KEYFRAME_START − KEYFRAME_END)
+  const bgAtPeak = (IMG_CELLS / 2 - 0.5) * 100 / (IMG_CELLS - 1)
+  const peakFrac = (KEYFRAME_START_P - bgAtPeak) / (KEYFRAME_START_P - KEYFRAME_END_P)
+  return offset * SHIMMER_STEP_MS + peakFrac * SHIMMER_CYCLE_MS
 }
