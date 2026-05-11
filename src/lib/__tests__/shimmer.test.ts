@@ -2,18 +2,20 @@ import { describe, it, expect } from 'vitest'
 import {
   cellShimmerIndex,
   isInCompleteLine,
-  imageLeftAt,
-  bandAbsXAt,
+  imageLeftAtCell,
   bandPeakTime,
   bgPositionAt,
   IMG_CELLS,
   SHIMMER_CYCLE_MS,
   SHIMMER_STEP_MS,
   SHIMMER_DELAY_BIAS_MS,
+  SHIMMER_TILT_DEG,
   KEYFRAME_START_P,
   KEYFRAME_END_P,
   type Completion,
 } from '../shimmer'
+
+const TAN_TILT = Math.tan(SHIMMER_TILT_DEG * Math.PI / 180)
 
 const N = 5
 const SAMPLE_GRID: number[][] = [
@@ -30,48 +32,33 @@ function emptyCompletion(): Completion {
 
 // ── cellShimmerIndex correctness ────────────────────────────────────────
 
-describe('cellShimmerIndex', () => {
-  it('returns 0 when the cell is in no completed line', () => {
-    const c = emptyCompletion()
-    expect(cellShimmerIndex(2, 2, SAMPLE_GRID, c)).toBe(0)
+describe('cellShimmerIndex (universal diagonal projection)', () => {
+  it('is zero at the top-left corner', () => {
+    expect(cellShimmerIndex(0, 0)).toBeCloseTo(0, 9)
   })
 
-  it('row completion: shimmerIndex = column index (so the wave sweeps L→R)', () => {
-    const c = emptyCompletion()
-    c.rows.set(1, [1, 3])
+  it('grows by 1 per column at the top row', () => {
     for (let col = 0; col < N; col++) {
-      expect(cellShimmerIndex(1, col, SAMPLE_GRID, c)).toBe(col)
+      expect(cellShimmerIndex(0, col)).toBeCloseTo(col, 9)
     }
   })
 
-  it('column completion: shimmerIndex = row index (so the wave sweeps T→B)', () => {
-    const c = emptyCompletion()
-    c.cols.set(2, [3, 2])
+  it('grows by tan(tilt) per row in the left column', () => {
     for (let row = 0; row < N; row++) {
-      expect(cellShimmerIndex(row, 2, SAMPLE_GRID, c)).toBe(row)
+      expect(cellShimmerIndex(row, 0)).toBeCloseTo(row * TAN_TILT, 9)
     }
   })
 
-  it('region completion: shimmerIndex = Chebyshev distance from the star', () => {
-    const c = emptyCompletion()
-    c.regions.set(0, [1, 1])
-    expect(cellShimmerIndex(1, 1, SAMPLE_GRID, c)).toBe(0)
-    expect(cellShimmerIndex(0, 0, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(0, 1, SAMPLE_GRID, c)).toBe(1)
-    expect(cellShimmerIndex(2, 0, SAMPLE_GRID, c)).toBe(1)
-  })
-
-  it('row beats column when a cell sits in both completed entities', () => {
-    // Row 2 complete AND col 1 complete. (2, 1) is in both — it should
-    // pick up the ROW's continuity (offset = col = 1), not the
-    // column's (which would be offset = row = 2). Otherwise the row's
-    // gradient would be broken at this cell.
-    const c = emptyCompletion()
-    c.rows.set(2, [2, 4])
-    c.cols.set(1, [2, 1])
-    expect(cellShimmerIndex(2, 1, SAMPLE_GRID, c)).toBe(1)
+  it('is the sum of horizontal and vertical contributions', () => {
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        expect(cellShimmerIndex(r, c)).toBeCloseTo(c + r * TAN_TILT, 9)
+      }
+    }
   })
 })
+
+// ── isInCompleteLine ────────────────────────────────────────────────────
 
 describe('isInCompleteLine', () => {
   it('returns true if any contributing entity is complete', () => {
@@ -82,62 +69,66 @@ describe('isInCompleteLine', () => {
   })
 })
 
-// ── Gradient continuity ─────────────────────────────────────────────────
+// ── Gradient continuity — horizontal AND vertical AND diagonal ──────────
 
-describe('gradient continuity ("the shimmer connects")', () => {
+describe('gradient continuity ("the diagonal shimmer connects in every direction")', () => {
   /**
-   * The whole point of the directional design: for every adjacent cell
-   * pair along a completed line (offset d and d+1), the second cell's
-   * `image-left` is exactly the first cell's `image-left − 1` at every
-   * moment. That's the algebraic condition for the gradient to render
-   * as ONE continuous band rather than per-cell tiles.
-   *
-   * The continuity property kicks in once all cells in the line have
-   * started animating — i.e. after the largest offset's delay has
-   * elapsed. Before that the right-most cells are pinned to the 0%
-   * keyframe by `animation-fill-mode: backwards`, which actually
-   * KEEPS the wave coherent (no visible band on those cells; the band
-   * is still off-left). We sample from `MAX_OFFSET × step` onward.
+   * Horizontal continuity: cells at the same row, neighbouring columns
+   * must have image-left differing by exactly −1 (one cell-width left)
+   * at every moment. That's the algebraic condition for the gradient
+   * to span the vertical boundary between them without a tear.
    */
-  const MAX_OFFSET = 9
-  const T_FULL_WAVE = MAX_OFFSET * SHIMMER_STEP_MS
-
-  it('once the wave is fully started, adjacent cells have image-left differing by exactly -1', () => {
-    for (let t = T_FULL_WAVE; t < T_FULL_WAVE + SHIMMER_CYCLE_MS * 2; t += 23) {
-      for (let d = 0; d < MAX_OFFSET; d++) {
-        const lA = imageLeftAt(d,     t)
-        const lB = imageLeftAt(d + 1, t)
-        expect(lB - lA,
-          `at t=${t}, offsets ${d}↔${d + 1}: image-left diff = ${(lB - lA).toFixed(6)}, expected -1`,
-        ).toBeCloseTo(-1, 6)
+  it('horizontally adjacent cells: image-left diff is exactly -1', () => {
+    for (let t = 0; t < SHIMMER_CYCLE_MS * 2; t += 23) {
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N - 1; c++) {
+          const lA = imageLeftAtCell(r, c,     t)
+          const lB = imageLeftAtCell(r, c + 1, t)
+          expect(lB - lA,
+            `at t=${t}, (${r},${c})↔(${r},${c + 1}): diff=${(lB - lA).toFixed(6)}, expected -1`,
+          ).toBeCloseTo(-1, 9)
+        }
       }
     }
   })
 
-  it('once fully started, the bright band is at the SAME absolute screen position when viewed from either side of a cell boundary', () => {
-    // bandAbsXAt(d, t) gives the band's centre in row-absolute units.
-    // If continuous, cell d's idea of where the band is must match cell
-    // d+1's idea, even though they paint independent gradient instances.
-    for (let t = T_FULL_WAVE; t < T_FULL_WAVE + SHIMMER_CYCLE_MS * 2; t += 31) {
-      for (let d = 0; d < MAX_OFFSET; d++) {
-        const fromA = bandAbsXAt(d,     t)
-        const fromB = bandAbsXAt(d + 1, t)
-        expect(fromB,
-          `at t=${t}, offsets ${d}↔${d + 1}: absolute band x differs (${fromA.toFixed(4)} vs ${fromB.toFixed(4)})`,
-        ).toBeCloseTo(fromA, 5)
+  /**
+   * Vertical continuity: cells at the same column, neighbouring rows
+   * must have image-left differing by exactly −tan(tilt). With the
+   * gradient diagonal, a unit step in image-y shifts the projection
+   * by sin(tilt); compensating horizontally by tan(tilt) keeps the
+   * gradient colour identical along the horizontal boundary.
+   */
+  it('vertically adjacent cells: image-left diff is exactly -tan(tilt)', () => {
+    for (let t = 0; t < SHIMMER_CYCLE_MS * 2; t += 23) {
+      for (let r = 0; r < N - 1; r++) {
+        for (let c = 0; c < N; c++) {
+          const lA = imageLeftAtCell(r,     c, t)
+          const lB = imageLeftAtCell(r + 1, c, t)
+          expect(lB - lA,
+            `at t=${t}, (${r},${c})↔(${r + 1},${c}): diff=${(lB - lA).toFixed(6)}, expected ${(-TAN_TILT).toFixed(6)}`,
+          ).toBeCloseTo(-TAN_TILT, 9)
+        }
       }
     }
   })
 
-  it('the bias keeps the animation always in cycle for every supported grid size', () => {
-    // The "no ramp-up" trick depends on the inline animation-delay being
-    // negative for every cell, so the CSS engine treats the animation
-    // as having been running since before puzzle-load. The bias must
-    // exceed max shimmerIndex × step for the largest puzzle (10×10 →
-    // max index 9 → 720 ms). 80 000 ms is 100 cycles — comfortably
-    // above any practical max.
-    const MAX_INDEX_10x10 = 9
-    expect(SHIMMER_DELAY_BIAS_MS).toBeGreaterThan(MAX_INDEX_10x10 * SHIMMER_STEP_MS)
+  /**
+   * Diagonal continuity (corner-sharing cells): the gradient values
+   * must match at the corner pixel. With horizontal diff −1 and
+   * vertical diff −tan(tilt), the diagonal diff is −(1 + tan(tilt)),
+   * which keeps the colour matched there too.
+   */
+  it('diagonally adjacent cells: image-left diff is -(1 + tan(tilt))', () => {
+    for (let t = 0; t < SHIMMER_CYCLE_MS * 2; t += 31) {
+      for (let r = 0; r < N - 1; r++) {
+        for (let c = 0; c < N - 1; c++) {
+          const lA = imageLeftAtCell(r,     c,     t)
+          const lB = imageLeftAtCell(r + 1, c + 1, t)
+          expect(lB - lA).toBeCloseTo(-(1 + TAN_TILT), 9)
+        }
+      }
+    }
   })
 
   it('step is the algebraically-required cycle / (IMG − 1)', () => {
@@ -149,38 +140,35 @@ describe('gradient continuity ("the shimmer connects")', () => {
 
 describe('wave direction', () => {
   /**
-   * With positive delay step, cell N+1 lags cell N. The band reaches
-   * cell N first; later it reaches cell N+1. Result: the wave moves
-   * along the line in the direction of increasing shimmerIndex —
-   * L→R for rows, T→B for columns.
+   * With the universal formula `delay = (col + row × tan(tilt)) × step`,
+   * the band reaches each cell later, the larger its shimmer index —
+   * i.e. moving right OR down advances the wave. The result is a single
+   * diagonal sweep originating from the upper-left of the board.
    */
-  it('the band reaches each cell later, the higher its shimmer offset', () => {
-    const peaks = [0, 1, 2, 3, 4].map(bandPeakTime)
+  it('the band reaches each cell later, the higher its shimmerIndex', () => {
+    const cells = [[0, 0], [0, 1], [1, 0], [0, 2], [1, 1], [2, 0], [3, 4]]
+    cells.sort((a, b) => cellShimmerIndex(a[0], a[1]) - cellShimmerIndex(b[0], b[1]))
+    const peaks = cells.map(([r, c]) => bandPeakTime(cellShimmerIndex(r, c)))
     for (let i = 1; i < peaks.length; i++) {
-      expect(peaks[i],
-        `peak at offset ${i} must be later than at offset ${i - 1}`,
-      ).toBeGreaterThan(peaks[i - 1])
+      expect(peaks[i]).toBeGreaterThanOrEqual(peaks[i - 1] - 1e-9)
     }
   })
 
-  it('the wave traverses one cell per SHIMMER_STEP_MS', () => {
-    // Successive peak times differ by exactly one step.
-    for (let i = 1; i < 5; i++) {
-      const dt = bandPeakTime(i) - bandPeakTime(i - 1)
-      expect(dt).toBeCloseTo(SHIMMER_STEP_MS, 6)
+  it('row sweep: cell (R, C+1) lights up SHIMMER_STEP_MS after (R, C)', () => {
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N - 1; c++) {
+        const dt = bandPeakTime(cellShimmerIndex(r, c + 1)) - bandPeakTime(cellShimmerIndex(r, c))
+        expect(dt).toBeCloseTo(SHIMMER_STEP_MS, 6)
+      }
     }
   })
 
-  it('absolute band x advances monotonically along the line as time progresses', () => {
-    // Sample the band's absolute position at fixed cell (offset 4)
-    // across increasing t; it must move right (increasing x) over time.
-    let prev = -Infinity
-    for (let t = 0; t < SHIMMER_CYCLE_MS; t += 20) {
-      const x = bandAbsXAt(4, t)
-      expect(x,
-        `at t=${t}, band moved backward: prev=${prev.toFixed(3)} now=${x.toFixed(3)}`,
-      ).toBeGreaterThanOrEqual(prev - 1e-9)
-      prev = x
+  it('column sweep: cell (R+1, C) lights up tan(tilt) × SHIMMER_STEP_MS after (R, C)', () => {
+    for (let r = 0; r < N - 1; r++) {
+      for (let c = 0; c < N; c++) {
+        const dt = bandPeakTime(cellShimmerIndex(r + 1, c)) - bandPeakTime(cellShimmerIndex(r, c))
+        expect(dt).toBeCloseTo(TAN_TILT * SHIMMER_STEP_MS, 6)
+      }
     }
   })
 })
@@ -189,13 +177,24 @@ describe('wave direction', () => {
 
 describe('speed', () => {
   it('the wave traverses an 8-cell row in under one second', () => {
-    // First cell peaks at bandPeakTime(0); last cell peaks at bandPeakTime(7).
-    const traversal = bandPeakTime(7) - bandPeakTime(0)
+    const traversal = bandPeakTime(cellShimmerIndex(0, 7)) - bandPeakTime(cellShimmerIndex(0, 0))
     expect(traversal).toBeLessThan(1000)
   })
 
   it('cycle is brisk — under 1 second', () => {
     expect(SHIMMER_CYCLE_MS).toBeLessThanOrEqual(1000)
+  })
+})
+
+// ── Always-on / no ramp-up ──────────────────────────────────────────────
+
+describe('always-on animation (no ramp-up)', () => {
+  it('the bias keeps the animation always in cycle for every supported grid size', () => {
+    // With diagonal delays, the max shimmerIndex on a 10×10 grid is
+    // 9 + 9 × tan(25°) ≈ 13.2 — max delay ≈ 1.06 s. The bias (80 s)
+    // dwarfs this, so every effective delay is comfortably negative.
+    const maxIndex = 9 + 9 * TAN_TILT
+    expect(SHIMMER_DELAY_BIAS_MS).toBeGreaterThan(maxIndex * SHIMMER_STEP_MS)
   })
 })
 
@@ -207,11 +206,9 @@ describe('CSS-mirrored constants', () => {
     expect(SHIMMER_STEP_MS).toBeGreaterThan(0)
   })
 
-  it('IMG is large enough that the per-cell visible slice (1 / IMG) is small', () => {
-    // We need IMG >> 1 so the bright band (only a few percent of the
-    // gradient) doesn't dominate a whole cell. 4 is comfortably above
-    // "tile-per-cell".
-    expect(IMG_CELLS).toBeGreaterThanOrEqual(4)
+  it('tilt is between 0 and 45 degrees (mild diagonal)', () => {
+    expect(SHIMMER_TILT_DEG).toBeGreaterThan(0)
+    expect(SHIMMER_TILT_DEG).toBeLessThan(45)
   })
 
   it('keyframe endpoints differ (so something actually animates)', () => {

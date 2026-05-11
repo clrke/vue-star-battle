@@ -96,8 +96,13 @@ const inCompleteLine = (row: number, col: number) =>
   completion.value.cols.has(col) ||
   completion.value.regions.has(currentPuzzle.value.grid[row][col])
 
+// The shimmer index is now a universal function of (row, col) — it doesn't
+// depend on which entity completed, because the per-cell animation-delay
+// formula (col + row × tan(tilt)) keeps the diagonal gradient continuous
+// across every cell boundary regardless. Visibility is gated separately
+// by inCompleteLine.
 function cellShimmerIndex(row: number, col: number): number {
-  return shimmerIndexLib(row, col, currentPuzzle.value.grid, completion.value)
+  return shimmerIndexLib(row, col)
 }
 const hintAction = computed(() =>
   lastHint.value && (lastHint.value.action === 'place-mark' || lastHint.value.action === 'place-star')
