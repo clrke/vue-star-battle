@@ -293,10 +293,10 @@ function onToggleMark(r: number, c: number) {
       :class="{ 'board--solved': isSolved }"
       @pointerleave="onBoardLeave"
     >
-      <template v-for="r in n" :key="r">
+      <template v-for="r in n" :key="`${n}-${r}`">
         <Cell
           v-for="c in n"
-          :key="`${r - 1},${c - 1}`"
+          :key="`${n}-${r - 1},${c - 1}`"
           :region-id="currentPuzzle.grid[r - 1][c - 1]"
           :state="displayCellStates[r - 1][c - 1]"
           :borders="getBorders(r - 1, c - 1)"
