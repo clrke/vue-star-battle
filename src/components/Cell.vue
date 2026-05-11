@@ -467,17 +467,15 @@ onUnmounted(() => {
   z-index: 0;
   opacity: 0;
   transition: opacity 250ms ease-out;
-  background:
-    linear-gradient(
-      115deg,
-      rgba(247, 201, 72, 0.08)  0%,
-      rgba(247, 201, 72, 0.08) 40%,
-      rgba(247, 201, 72, 0.52) 50%,
-      rgba(247, 201, 72, 0.08) 60%,
-      rgba(247, 201, 72, 0.08) 100%
-    ),
-    rgba(247, 201, 72, 0.14);
-  background-size: 1100% 100%, 100% 100%;
+  background: linear-gradient(
+    115deg,
+    transparent       0%,
+    transparent      40%,
+    rgba(247, 201, 72, 0.55) 50%,
+    transparent      60%,
+    transparent     100%
+  );
+  background-size: 1100% 100%;
   background-repeat: no-repeat;
   animation: shimmer-gold 0.8s linear infinite;
   animation-delay: var(--shimmer-delay, 0ms);
