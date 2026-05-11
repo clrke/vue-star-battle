@@ -2,13 +2,16 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGameStore } from '../stores/game'
+import { useProgressionStore } from '../stores/progression'
 import { playStarPlace, playMarkPlace } from '../composables/useSound'
 
 const game = useGameStore()
+const progression = useProgressionStore()
 const {
   lastHint, currentHintStep, totalHintSteps, hintStepIndex,
   isFirstHintStep, isLastHintStep,
 } = storeToRefs(game)
+const { nextHintCost } = storeToRefs(progression)
 
 const visible = computed(() => lastHint.value !== null)
 
@@ -116,8 +119,12 @@ function apply() {
         <button
           v-if="isMultiStep && !isLastHintStep"
           class="hint-btn hint-btn--primary"
+          :title="`Reveal the next step (costs ${nextHintCost} XP)`"
           @click="next"
-        >Next →</button>
+        >
+          Next →
+          <span class="hint-xp-badge">−{{ nextHintCost }} XP</span>
+        </button>
 
         <button
           v-if="canApply && (isLastHintStep || !isMultiStep)"
@@ -225,6 +232,20 @@ function apply() {
   font-size: 0.78rem;
   font-weight: 700;
   transition: all 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* XP-cost badge shown inside the Next button — same role as the
+   badge on the footer Hint button. The badge inherits the button's
+   primary text colour so it reads clearly on both light + dark
+   primary backgrounds. */
+.hint-btn .hint-xp-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
 }
 .hint-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
 .hint-btn:disabled { opacity: 0.35; cursor: default; }

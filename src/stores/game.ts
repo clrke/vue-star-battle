@@ -163,11 +163,18 @@ export const useGameStore = defineStore('game', () => {
   function nextHintStep() {
     if (!lastHint.value) return
     if (hintStepIndex.value < lastHint.value.steps.length - 1) {
+      // Each additional reveal in a multi-step hint costs the same XP as
+      // the initial hint — the badge on the Next button shows the
+      // cost. The incentive is to stop after step 1 (or 2) and figure
+      // out the rest, rather than blindly clicking through.
+      progression.recordHintUsed()
       hintStepIndex.value++
       syncHintHighlight()
     }
   }
   function prevHintStep() {
+    // Going back is free — players can re-read an earlier step they've
+    // already paid for without being charged again.
     if (hintStepIndex.value > 0) {
       hintStepIndex.value--
       syncHintHighlight()
