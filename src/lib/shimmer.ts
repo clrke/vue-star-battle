@@ -71,22 +71,38 @@ export const SHIMMER_STEP_MS = SHIMMER_CYCLE_MS / (IMG_CELLS - 1)
  *   - 45deg  → axis pointing upper-right at 45°  (stripe goes /)
  *   - 115deg → axis pointing lower-right at 25°  (stripe goes \, mild)
  *   - 135deg → axis pointing lower-right at 45°  (stripe goes \, steep)
+ *   - 225deg → axis pointing lower-left at 45°   (same axis line as
+ *                                                  45deg, opposite
+ *                                                  direction — visually
+ *                                                  identical for the
+ *                                                  symmetric gradient
+ *                                                  we use)
  */
-export const SHIMMER_GRADIENT_DEG = 45
+export const SHIMMER_GRADIENT_DEG = 225
 
 /**
- * Gradient axis tilt, in degrees from horizontal-right. Positive =
- * axis points below horizontal (toward lower-right); negative = axis
- * points above horizontal (toward upper-right). tan(tilt) is the
- * vertical-to-horizontal compensation needed for continuity across
- * horizontal cell boundaries.
+ * Gradient axis tilt, in degrees from horizontal-right, normalised to
+ * (−90°, 90°]. Positive = axis points below horizontal (toward
+ * lower-right); negative = axis points above horizontal (toward
+ * upper-right). tan(tilt) is the vertical-to-horizontal compensation
+ * needed for continuity across horizontal cell boundaries — and tan is
+ * 180°-periodic, so the lib treats 45° and 225° (same axis line, opposite
+ * directions) as equivalent.
  *
  *   CSS 90deg  → tilt   0° → tan = 0
  *   CSS 115deg → tilt +25° → tan ≈ +0.466
  *   CSS 135deg → tilt +45° → tan = +1
  *   CSS 45deg  → tilt −45° → tan = −1
+ *   CSS 225deg → tilt −45° → tan = −1   (same as 45° after normalising)
  */
-export const SHIMMER_TILT_DEG = SHIMMER_GRADIENT_DEG - 90
+export const SHIMMER_TILT_DEG = (() => {
+  // Normalise (SHIMMER_GRADIENT_DEG − 90) to the half-open range
+  // (−90°, 90°] so the test bounds and human-readable docs stay sane
+  // regardless of which side of the axis the CSS angle was written on.
+  const raw = SHIMMER_GRADIENT_DEG - 90
+  const wrapped = ((raw + 90) % 180 + 180) % 180 - 90
+  return wrapped
+})()
 const TILT_RAD = SHIMMER_TILT_DEG * Math.PI / 180
 const TAN_TILT = Math.tan(TILT_RAD)
 
