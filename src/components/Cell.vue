@@ -37,6 +37,10 @@ const props = defineProps<{
   /** True if this cell belongs to a satisfied (1-star, no-violation) row,
    *  column, or region — triggers the gold shimmer overlay. */
   inCompleteLine?: boolean
+  /** True if this cell belongs to a "dead" row, column, or region — one
+   *  with no star and zero empty cells, so it's been over-marked.
+   *  Dots in dead lines render red to flag the mistake. */
+  inDeadLine?: boolean
   /** Cell's diagonal index (row + col), used to phase-shift the shimmer
    *  animation so the gold appears to sweep diagonally across the board
    *  rather than every cell flashing in unison. */
@@ -200,6 +204,7 @@ onUnmounted(() => {
       'cell--marked': state === 'marked',
       'cell--auto-marked': state === 'auto-marked',
       'cell--violated': isViolated,
+      'cell--dead': inDeadLine,
       'cell--hint': isHint,
       'cell--hint-mark': isHint && hintAction === 'place-mark',
       'border-top': borders.top,
@@ -353,6 +358,19 @@ onUnmounted(() => {
 .cell--auto-marked { cursor: default; }
 .cell--auto-marked:hover { filter: none; }
 .cell--auto-marked:active { filter: none; }
+
+/* Dead-line dots — the cell sits in a row / column / region that has
+   no star and zero empty cells, so it's been over-marked. The dot
+   recolours red as an instant error indicator; the user-placed dot is
+   also slightly larger so the red reads clearly even at small board
+   sizes. */
+.cell--dead .cell__dot--user {
+  background: var(--red, #c0392b);
+}
+.cell--dead .cell__dot--auto {
+  background: var(--red, #c0392b);
+  opacity: 0.65;
+}
 
 /* Violation highlight */
 .cell--violated .cell__symbol--star { color: var(--red); }

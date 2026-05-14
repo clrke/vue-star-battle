@@ -341,6 +341,62 @@ export const useGameStore = defineStore('game', () => {
     return { rows, cols, regions }
   })
 
+  // ── Dead entities (over-marking detection) ───────────────────────────────
+  //
+  // A row / column / region is "dead" if it has NO star and ZERO empty
+  // cells — every cell is a user dot or an auto-mark, so there's
+  // nowhere left to place the required star. This is the player's
+  // signal that they've over-marked the line.
+  //
+  // We read the *display* state so computed auto-marks (driven by stars
+  // in *other* lines) count toward the dead condition: e.g. column 5
+  // can become dead if every cell in it is auto-marked because of stars
+  // elsewhere on the board, even though the player never explicitly
+  // marked any of them.
+  //
+  // The Cell uses these sets to recolor its dots red — the indicator is
+  // purely visual; the engine's `wrong-mark` hint already handles
+  // pointing the player at the offending mark.
+
+  const deadEntities = computed<{ rows: Set<number>; cols: Set<number>; regions: Set<number> }>(() => {
+    const n     = currentPuzzle.value.n
+    const grid  = currentPuzzle.value.grid
+    const state = displayCellStates.value
+
+    const rowHasStar    = new Array<boolean>(n).fill(false)
+    const colHasStar    = new Array<boolean>(n).fill(false)
+    const regHasStar    = new Array<boolean>(n).fill(false)
+    const rowEmptyCount = new Array<number>(n).fill(0)
+    const colEmptyCount = new Array<number>(n).fill(0)
+    const regEmptyCount = new Array<number>(n).fill(0)
+
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        const s = state[r]?.[c]
+        const rid = grid[r][c]
+        if (s === 'star') {
+          rowHasStar[r] = true
+          colHasStar[c] = true
+          regHasStar[rid] = true
+        } else if (s === 'empty') {
+          rowEmptyCount[r]++
+          colEmptyCount[c]++
+          regEmptyCount[rid]++
+        }
+      }
+    }
+
+    const rows = new Set<number>()
+    const cols = new Set<number>()
+    const regions = new Set<number>()
+    for (let i = 0; i < n; i++) {
+      if (!rowHasStar[i] && rowEmptyCount[i] === 0) rows.add(i)
+      if (!colHasStar[i] && colEmptyCount[i] === 0) cols.add(i)
+      if (!regHasStar[i] && regEmptyCount[i] === 0) regions.add(i)
+    }
+    return { rows, cols, regions }
+  })
+
   // ── Progress / Win ────────────────────────────────────────────────────────
 
   const starCount = computed(() => {
@@ -371,7 +427,7 @@ export const useGameStore = defineStore('game', () => {
 
   return {
     currentPuzzle, cellStates, displayCellStates,
-    violations, completion, isSolved, starCount,
+    violations, completion, deadEntities, isSolved, starCount,
     hintCell, lastHint, lastSolve,
     hintStepIndex, currentHintStep, totalHintSteps, isFirstHintStep, isLastHintStep,
     canUndo, canRedo,

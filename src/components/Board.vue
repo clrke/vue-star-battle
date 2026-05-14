@@ -12,7 +12,7 @@ import { playStarPlace, playMarkPlace, playSolve, playWrong } from '../composabl
 const game        = useGameStore()
 const progression = useProgressionStore()
 const {
-  currentPuzzle, displayCellStates, violations, completion, isSolved,
+  currentPuzzle, displayCellStates, violations, completion, deadEntities, isSolved,
   hintCell, lastHint, starCount, lastSolve, currentHintStep,
 } = storeToRefs(game)
 const { currentSize, perSize } = storeToRefs(progression)
@@ -95,6 +95,14 @@ const inCompleteLine = (row: number, col: number) =>
   completion.value.rows.has(row) ||
   completion.value.cols.has(col) ||
   completion.value.regions.has(currentPuzzle.value.grid[row][col])
+
+// "Dead" = part of any row / column / region that has no star AND
+// zero empty cells, so there's nowhere left to place the required
+// star. Dots in dead lines get recoloured red as a visual error cue.
+const inDeadLine = (row: number, col: number) =>
+  deadEntities.value.rows.has(row) ||
+  deadEntities.value.cols.has(col) ||
+  deadEntities.value.regions.has(currentPuzzle.value.grid[row][col])
 
 // The shimmer index is now a universal function of (row, col) — it doesn't
 // depend on which entity completed, because the per-cell animation-delay
@@ -311,6 +319,7 @@ function onToggleMark(r: number, c: number) {
           :in-hover-col="inHoverCol(c - 1)"
           :is-focused="keyboardMode && focusedCell?.r === r - 1 && focusedCell?.c === c - 1"
           :in-complete-line="inCompleteLine(r - 1, c - 1)"
+          :in-dead-line="inDeadLine(r - 1, c - 1)"
           :shimmer-index="cellShimmerIndex(r - 1, c - 1)"
           @hover="onCellHover(r - 1, c - 1)"
           @toggle-star="onToggleStar(r - 1, c - 1)"
