@@ -10,12 +10,20 @@ import {
   hintCostForLevel,
   maxLookaheadsForLevel,
   lookaheadTierForLevel,
+  prestigeCycleForLevel,
   tierLabel,
   MAX_LEVEL,
   type PerSizeStats,
   type PersistedProgression,
   type SavedPuzzle,
 } from '../types/progression'
+
+/** Roman-numeral suffix for prestige cycles ≥ 1. Cycle 0 is unsuffixed. */
+function prestigeSuffix(cycle: number): string {
+  if (cycle <= 0) return ''
+  const romans = ['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+  return romans[cycle] ?? `×${cycle + 1}`
+}
 
 const STORAGE_KEY = 'star-battle/progression/v1'
 
@@ -82,10 +90,18 @@ export const useProgressionStore = defineStore('progression', () => {
   /** Max lookahead-class hints permitted on the auto-solve path of the next
    *  puzzle (the worker filters generation by this). */
   const currentMaxLookaheads = computed(() => maxLookaheadsForLevel(level.value))
-  /** Lookahead-tier index for the current level (0..3). */
-  const currentTier       = computed(() => lookaheadTierForLevel(level.value))
-  /** Human-friendly label for the current lookahead tier ("Pure logic", …). */
-  const currentTierLabel  = computed(() => tierLabel(currentTier.value))
+  /** Lookahead-tier index for the current level (0..TIER_COUNT-1). */
+  const currentTier         = computed(() => lookaheadTierForLevel(level.value))
+  /** Prestige cycle index for the current level (0 = first climb,
+   *  1+ = repeated climbs at escalating XP). */
+  const currentPrestige     = computed(() => prestigeCycleForLevel(level.value))
+  /** Human-friendly label for the current lookahead tier
+   *  ("Pure logic", …), suffixed with a Roman numeral after cycle 0. */
+  const currentTierLabel    = computed(() => {
+    const base = tierLabel(currentTier.value)
+    const suffix = prestigeSuffix(currentPrestige.value)
+    return suffix ? `${base} ${suffix}` : base
+  })
   /** True when the player has reached the highest available level. */
   const isMaxLevel        = computed(() => level.value >= MAX_LEVEL)
   /**
@@ -258,7 +274,7 @@ export const useProgressionStore = defineStore('progression', () => {
     currentStreak, bestStreak, lastHintDebit,
     // derived
     level, xpAtLevelStart, xpAtNextLevel, xpIntoLevel, xpForLevelSpan, xpToNextLevel,
-    currentSize, currentMaxLookaheads, currentTier, currentTierLabel,
+    currentSize, currentMaxLookaheads, currentTier, currentPrestige, currentTierLabel,
     isMaxLevel, winsToNextLevel, nextHintCost,
     // actions
     startPuzzle, updatePuzzleState, recordHintUsed, getElapsedMs, pause,

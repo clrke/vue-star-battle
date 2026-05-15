@@ -96,47 +96,119 @@ export interface Tier {
   winsToAdvance: number
 }
 
-const LEVEL_TIERS: Tier[] = (() => {
-  const out: Tier[] = []
+/**
+ * Levels per prestige cycle: one pass through every (size × tier)
+ * combination = SIZES.length × TIER_LOOKAHEADS.length levels.
+ */
+const LEVELS_PER_CYCLE = SIZES.length * TIER_LOOKAHEADS.length
+
+/**
+ * Tier descriptor for any level (≥ 1) — generated on demand so the
+ * progression is open-ended.
+ *
+ * Within a cycle, the player walks (size 0 → size N) at tier 0, then
+ * (size 0 → size N) at tier 1, and so on through every lookahead tier.
+ * Once the top tier is finished, the cycle restarts at size 4 / tier 0
+ * but with a higher REWARD MULTIPLIER — cycle 1 pays out at (base × 2),
+ * cycle 2 at (base × 3), and so on indefinitely. The size and lookahead
+ * cap repeat, but the XP economy grows so each subsequent climb feels
+ * worth doing.
+ */
+export function tierForLevel(level: number): Tier {
+  const lvl = Math.max(1, level)
+  const idx = lvl - 1                                   // 0-based
+  const cycle = Math.floor(idx / LEVELS_PER_CYCLE)      // 0, 1, 2, …
+  const inCycle = idx % LEVELS_PER_CYCLE
+  const tierIdx = Math.floor(inCycle / SIZES.length)    // 0..TIER_LOOKAHEADS.length-1
+  const sizeIdx = inCycle % SIZES.length
+  const size = SIZES[sizeIdx]
+  const ml = TIER_LOOKAHEADS[tierIdx]
+  const cycleMultiplier = cycle + 1                     // 1×, 2×, 3×, …
+  return {
+    level: lvl,
+    size,
+    maxLookaheads: ml,
+    tierIndex: tierIdx,
+    reward: SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[tierIdx] * cycleMultiplier,
+    winsToAdvance: SIZE_WINS_TO_ADVANCE[size],
+  }
+}
+
+/**
+ * Closed-form total XP awarded over one full cycle at base multiplier
+ * 1× — i.e. summed (reward × winsToAdvance) for every level in cycle 0.
+ * Cycle K's contribution is (K+1) × this value because the reward
+ * multiplier scales linearly with the cycle number.
+ */
+const CYCLE_XP_BASE = (() => {
+  let total = 0
   for (let ti = 0; ti < TIER_LOOKAHEADS.length; ti++) {
-    const ml = TIER_LOOKAHEADS[ti]
     for (const size of SIZES) {
-      out.push({
-        level: out.length + 1,
-        size,
-        maxLookaheads: ml,
-        tierIndex: ti,
-        reward: SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[ti],
-        winsToAdvance: SIZE_WINS_TO_ADVANCE[size],
-      })
+      total += SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[ti] * SIZE_WINS_TO_ADVANCE[size]
     }
   }
-  return out
+  return total
 })()
 
-/** Cumulative XP required to *reach* level L (so L1 = 0). */
+/** Cumulative XP required to *reach* level L (so L1 = 0). Handles any
+ *  level — the closed-form sum across completed cycles makes it cheap
+ *  even at level 10 000. */
 export function cumXpForLevel(level: number): number {
-  let xp = 0
-  for (const tier of LEVEL_TIERS) {
-    if (tier.level >= level) break
-    xp += tier.reward * tier.winsToAdvance
+  const lvl = Math.max(1, level)
+  const idx = lvl - 1
+  const completedCycles = Math.floor(idx / LEVELS_PER_CYCLE)
+  const inCycle = idx % LEVELS_PER_CYCLE
+
+  // XP from every completed prestige cycle. Cycle K contributes (K+1)
+  // × CYCLE_XP_BASE, so cycles [0..completedCycles-1] sum to
+  // CYCLE_XP_BASE × (1 + 2 + … + completedCycles)
+  //              = CYCLE_XP_BASE × completedCycles × (completedCycles + 1) / 2.
+  const cyclesTotal = CYCLE_XP_BASE * completedCycles * (completedCycles + 1) / 2
+
+  // Partial XP within the current cycle, at the current cycle's multiplier.
+  const cycleMultiplier = completedCycles + 1
+  let withinCycle = 0
+  for (let i = 0; i < inCycle; i++) {
+    const tierIdx = Math.floor(i / SIZES.length)
+    const sizeIdx = i % SIZES.length
+    const size = SIZES[sizeIdx]
+    withinCycle += SIZE_BASE_REWARD[size] * TIER_MULTIPLIER[tierIdx] * SIZE_WINS_TO_ADVANCE[size]
   }
-  return xp
+  withinCycle *= cycleMultiplier
+
+  return cyclesTotal + withinCycle
 }
 
-/** Level corresponding to a given XP total (clamped to [1, MAX]). */
+/** Level corresponding to a given XP total. Open-ended; iterates the
+ *  per-level XP cost so it's O(level) per call. For very large XP it
+ *  short-circuits across completed cycles via the closed-form
+ *  CYCLE_XP_BASE × K(K+1)/2 sum. */
 export function levelForXp(xp: number): number {
-  let level = 1
-  for (const tier of LEVEL_TIERS) {
-    if (xp >= cumXpForLevel(tier.level)) level = tier.level
-    else break
+  if (xp <= 0) return 1
+  // First, skip whole cycles quickly. Cumulative XP through cycle K
+  // (inclusive) = CYCLE_XP_BASE × (K+1)(K+2)/2; solve for largest K
+  // with that ≤ xp.
+  // We don't need a closed-form invert — iterating cycles is O(√xp)
+  // and easily fast enough.
+  let cycle = 0
+  while (true) {
+    const through = CYCLE_XP_BASE * (cycle + 1) * (cycle + 2) / 2
+    if (through > xp) break
+    cycle++
+    if (cycle > 100_000) break   // safety; far beyond any practical play
+  }
+  // Now we know levels 1..(cycle × LEVELS_PER_CYCLE) are paid for.
+  // Advance through the partial cycle one level at a time.
+  let level = cycle * LEVELS_PER_CYCLE + 1
+  let cumXp = CYCLE_XP_BASE * cycle * (cycle + 1) / 2
+  while (true) {
+    const t = tierForLevel(level)
+    const cost = t.reward * t.winsToAdvance
+    if (cumXp + cost > xp) break
+    cumXp += cost
+    level++
   }
   return level
-}
-
-function tierForLevel(level: number): Tier {
-  const clamped = Math.min(Math.max(level, 1), LEVEL_TIERS[LEVEL_TIERS.length - 1].level)
-  return LEVEL_TIERS.find(t => t.level === clamped)!
 }
 
 /** Grid size to play at the given level. */
@@ -157,8 +229,25 @@ export function lookaheadTierForLevel(level: number): number {
   return tierForLevel(level).tierIndex
 }
 
-/** Highest reachable level. */
-export const MAX_LEVEL = LEVEL_TIERS[LEVEL_TIERS.length - 1].level
+/**
+ * Highest reachable level. The progression is open-ended — each
+ * subsequent cycle through (size × tier) pays out more XP — so this
+ * sentinel is just `Number.POSITIVE_INFINITY`. `isMaxLevel` in the
+ * store therefore stays false forever; the UI no longer collapses
+ * progress / wins-to-next into a "max level" branch.
+ */
+export const MAX_LEVEL = Number.POSITIVE_INFINITY
+
+/** Levels per prestige cycle (size × tier-cap matrix). Exposed for
+ *  the UI's prestige-suffix logic. */
+export const PRESTIGE_CYCLE_LEN = LEVELS_PER_CYCLE
+
+/** Prestige cycle index (0-based) the given level belongs to. Cycle 0
+ *  covers the first PRESTIGE_CYCLE_LEN levels; each subsequent cycle
+ *  reuses the same tier ladder but at a higher XP multiplier. */
+export function prestigeCycleForLevel(level: number): number {
+  return Math.floor((Math.max(1, level) - 1) / PRESTIGE_CYCLE_LEN)
+}
 
 /** Number of distinct lookahead tiers (0, 1, 2, 3). */
 export const TIER_COUNT = TIER_LOOKAHEADS.length
