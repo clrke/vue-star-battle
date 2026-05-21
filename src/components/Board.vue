@@ -450,6 +450,9 @@ function onToggleMark(r: number, c: number) {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  width: min(95vw, 560px);
+  padding: 0 12px;
+  box-sizing: border-box;
 }
 
 .solved-main {
@@ -462,11 +465,13 @@ function onToggleMark(r: number, c: number) {
 .solved-stats {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
 }
 
 .solved-sep { opacity: 0.4; }
@@ -514,4 +519,36 @@ function onToggleMark(r: number, c: number) {
 
 .solved-enter-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .solved-enter-from   { opacity: 0; transform: scale(0.6); }
+
+/* ── Mobile: give the solved banner breathing room ────────────────────
+ * On phones the banner items were stacking with only 4 px between
+ * lines and tiny fonts, so the whole thing read as a clump in the
+ * middle of the screen. Bump gaps + font sizes + tap target so each
+ * line has its own beat. */
+@media (max-width: 600px) {
+  .solved-banner {
+    gap: 10px;
+    padding: 10px 16px 4px;
+  }
+  .solved-main {
+    font-size: 1.85rem;
+    letter-spacing: 0.03em;
+  }
+  .solved-stats {
+    font-size: 0.95rem;
+    gap: 8px;
+  }
+  .solved-streak,
+  .solved-level {
+    font-size: 0.95rem;
+  }
+  .share-btn {
+    padding: 10px 22px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    /* Comfortable thumb target — 44 px is the iOS HIG minimum. */
+    min-height: 44px;
+  }
+  .solved-share { margin-top: 6px; }
+}
 </style>

@@ -283,6 +283,33 @@ onUnmounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: center;
+  width: min(95vw, 560px);
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+/* On mobile, give every footer button a beefy tap target and let the
+ * Next CTA stretch to a more obviously-pressable width. Stretching the
+ * Undo / Redo / Reset row to share width prevents them from clumping
+ * mid-screen too. */
+@media (max-width: 600px) {
+  .app-footer {
+    gap: 10px;
+    padding: 0 16px;
+  }
+  .footer-btn {
+    padding: 12px 22px;
+    font-size: 0.95rem;
+    min-height: 44px;
+  }
+  /* In the solved state only the Next button is rendered — let it
+   * fill the row so it's an obvious thumb target. */
+  .footer-btn--next {
+    flex: 1;
+    max-width: 360px;
+    font-size: 1.05rem;
+    padding: 14px 22px;
+  }
 }
 
 .footer-btn {
