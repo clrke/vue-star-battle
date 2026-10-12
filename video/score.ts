@@ -92,29 +92,31 @@ export function composeScore(tl: Timeline, o: ScoreOptions): AudioCue[] {
 
   // ── The search itself ──
   const slot = beat / 8 // 1/32 note
+  // Cruise steps can fall between grid lines; their sounds snap to the nearest 1/32 (≤31 ms).
+  const snap = (t: number) => Math.round(t / slot) * slot
   let lastNoteSlot = -1, lastBonk = -Infinity, lastBloop = -Infinity, lastRecord = -Infinity
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i]
     const isLast = i === steps.length - 1
     if (s.kind === 'advance' || s.kind === 'fail') {
-      const sl = Math.floor(s.t / slot + 1e-6)
+      const sl = Math.round(s.t / slot)
       // One note per 1/32 slot; when several steps share a slot, the deepest one sings.
       let deepest = s.depth
-      for (let j = i + 1; j < steps.length && Math.floor(steps[j].t / slot + 1e-6) === sl; j++)
+      for (let j = i + 1; j < steps.length && Math.round(steps[j].t / slot) === sl; j++)
         if (steps[j].kind !== 'backtrack') deepest = Math.max(deepest, steps[j].depth)
       if (sl !== lastNoteSlot && (deepest === s.depth || isLast)) {
         lastNoteSlot = sl
         const slowness = clamp01((s.dur - 0.03) / (0.25 - 0.03))
         const g = isLast ? 1.15 : s.isFinalRun ? 1.0 : 0.55 + 0.45 * slowness
-        cues.push({ t: s.t, kind: 'place', pitch: pitchFor(s.depth, s.t), gain: g, pan: pan(s.col) })
+        cues.push({ t: snap(s.t), kind: 'place', pitch: pitchFor(s.depth, s.t), gain: g, pan: pan(s.col) })
         // Record sparkles ring for seconds: space the early ones a beat apart, never drop the deep ones.
         if (s.isRecord && s.depth >= 2 && (s.t - lastRecord >= beat || s.depth >= n - 2)) {
           lastRecord = s.t
-          cues.push({ t: s.t, kind: 'record', pitch: pitchFor(s.depth, s.t) + 12, gain: 0.55 + 0.25 * slowness, pan: pan(s.col) })
+          cues.push({ t: snap(s.t), kind: 'record', pitch: pitchFor(s.depth, s.t) + 12, gain: 0.55 + 0.25 * slowness, pan: pan(s.col) })
         }
       }
       if (s.kind === 'fail') {
-        const tf = s.t + Math.min(0.4 * s.dur, 0.2)
+        const tf = snap(s.t + Math.min(0.4 * s.dur, 0.2))
         const slowEnough = s.dur >= 0.1
         if (slowEnough || tf - lastBonk >= beat) {
           lastBonk = tf
@@ -125,7 +127,7 @@ export function composeScore(tl: Timeline, o: ScoreOptions): AudioCue[] {
       const slowEnough = s.dur >= 0.1
       if (slowEnough || s.t - lastBloop >= beat / 2) {
         lastBloop = s.t
-        cues.push({ t: s.t, kind: 'remove', pitch: pitchFor(s.depth + 1, s.t), gain: slowEnough ? 0.9 : 0.4, pan: pan(s.col) })
+        cues.push({ t: snap(s.t), kind: 'remove', pitch: pitchFor(s.depth + 1, s.t), gain: slowEnough ? 0.9 : 0.4, pan: pan(s.col) })
       }
     }
   }

@@ -41,15 +41,16 @@ export interface TimelineOptions {
   bpm: number
   /** Seconds before the first step. */
   intro: number
-  /** Target length of the search (before the final run), seconds. */
-  searchBudget: number
+  /** Exact total video length, seconds (the search stretches/compresses to fill it). */
+  duration: number
   /** Celebration + outro length after the solve, seconds. */
   outro: number
-  /** Never cruise slower than this many steps/s (at 120 BPM) — easy puzzles finish sooner. */
-  minCruise: number
 }
 
-export const DEFAULT_TIMELINE: TimelineOptions = { bpm: 120, intro: 1.0, searchBudget: 30, outro: 6.5, minCruise: 8 }
+export const DEFAULT_TIMELINE: TimelineOptions = { bpm: 120, intro: 1.0, duration: 60, outro: 6.5 }
+
+/** Slack reserved for snapping the final run to an 8th and the solve to a beat. */
+const SNAP_SLACK = 0.625
 
 export interface Timeline {
   opts: TimelineOptions
@@ -106,32 +107,42 @@ export function buildTimeline(trace: Trace, partial: Partial<TimelineOptions> = 
   raw.forEach((s, i) => { if (s.kind === 'backtrack') lastBack = i })
   const searchCount = lastBack + 1
 
+  // ── Final run: rising 8th notes into the solve (16ths for fails / long runs) ──
+  const finalCount = raw.length - searchCount
+  const finalDurs: number[] = []
+  for (let k = 0; k < finalCount; k++) {
+    const s = raw[searchCount + k]
+    const fromEnd = finalCount - k
+    finalDurs.push(s.kind === 'fail' || fromEnd > 5 ? beat / 4 : beat / 2)
+  }
+  // The last final-run step is the solve itself (dur 0), so it adds no time.
+  const finalTime = finalDurs.slice(0, -1).reduce((a, b) => a + b, 0)
+  const budget = Math.max(1, opts.duration - opts.intro - opts.outro - finalTime - SNAP_SLACK)
+
   // ── Ramp + cruise for the search part ──
-  // Rung r plays RUNGS[r] steps per second; times stay on the grid because every rung
-  // is quarter/8th/16th/32nd notes or an integer number of steps per 32nd.
+  // Climb the rungs (2, 4, 8, 16 … steps/s, about a second each, all on the beat grid) while
+  // the current rung is too slow to finish in time; then cruise at exactly the speed that
+  // uses up the remaining budget, so every video lands on the same total length.
   const durs: number[] = []
   const speeds: number[] = []
   let rung = 0, done = 0, time = 0
   while (done < searchCount) {
     const v = RUNGS[rung] * (opts.bpm / 120)
     const left = searchCount - done
-    const fits = RUNGS[rung] >= opts.minCruise && left / v <= opts.searchBudget - time
-    const take = fits || rung === RUNGS.length - 1 ? left : Math.min(left, Math.max(1, Math.round(v)))
+    const remaining = budget - time
+    if (left / v <= remaining || rung === RUNGS.length - 1) {
+      const vc = Math.max(left / Math.max(remaining, 1e-3), 0.5)
+      for (let k = 0; k < left; k++) { durs.push(1 / vc); speeds.push(Math.max(1, Math.round(vc / RUNGS[0]))) }
+      done = searchCount
+      break
+    }
+    const take = Math.min(left, Math.max(1, Math.round(v)))
     for (let k = 0; k < take; k++) { durs.push(1 / v); speeds.push(RUNGS[rung] / RUNGS[0]) }
     done += take
     time += take / v
     rung++
   }
-
-  // ── Final run: rising 8th notes into the solve (16ths for fails / long runs) ──
-  const finalCount = raw.length - searchCount
-  for (let k = 0; k < finalCount; k++) {
-    const s = raw[searchCount + k]
-    const fromEnd = finalCount - k
-    const d = s.kind === 'fail' || fromEnd > 5 ? beat / 4 : beat / 2
-    durs.push(d)
-    speeds.push(1)
-  }
+  for (const d of finalDurs) { durs.push(d); speeds.push(1) }
 
   const steps: Step[] = []
   let t = opts.intro
@@ -165,8 +176,9 @@ export function buildTimeline(trace: Trace, partial: Partial<TimelineOptions> = 
   sweep.end = sweep.t + n * sweep.stepDur
   const tBanner = sweep.end + beat / 4
   const tStats = tBanner + beat * 2
-  const tOutro = tSolve + opts.outro - 2.5
-  const tEnd = tSolve + opts.outro
+  // Exact length: the outro absorbs the few hundred ms of snapping slack.
+  const tEnd = Math.max(opts.duration, tSolve + opts.outro)
+  const tOutro = tEnd - 2.5
 
   return { opts, steps, tFinalRun, tSolve, tEnd, sweep, tBanner, tStats, tOutro, beat }
 }

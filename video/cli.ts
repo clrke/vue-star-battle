@@ -27,7 +27,7 @@ import { encodeVideo, encodePreview } from './encode'
 import { hashSeed, mulberry32, pick } from './rng'
 
 const KEYS = [-3, -2, 0, 2, 3] // A, B♭, C, D, E♭
-const SIZE_WEIGHTS: [number, number][] = [[8, 0.3], [9, 0.45], [10, 0.25]]
+const SIZE_WEIGHTS: [number, number][] = [[9, 0.5], [10, 0.5]] // 8×8 rarely has enough steps for 60 s
 
 export interface RenderJob {
   seed: number
@@ -35,7 +35,8 @@ export interface RenderJob {
   puzzle?: Puzzle
   out: string
   fps: number
-  searchBudget: number
+  /** Exact video length, seconds. */
+  duration: number
   puzzleNumber?: number
   audio: boolean
   stills?: number[]
@@ -70,7 +71,7 @@ export async function renderVideo(job: RenderJob): Promise<RenderResult> {
   // "Real solve time" on screen: best of a few warm runs, so JIT warm-up doesn't count.
   for (let k = 0; k < 3; k++) trace.stats.cpuMs = Math.min(trace.stats.cpuMs, traceDfs(puzzle, 'row').stats.cpuMs)
   const n = puzzle.n
-  const timeline = buildTimeline(trace, { searchBudget: job.searchBudget })
+  const timeline = buildTimeline(trace, { duration: job.duration })
   const model = buildSceneModel(puzzle, timeline, trace.solution, 'row')
   const renderer = new SceneRenderer(model, {
     puzzleNumber: job.puzzleNumber,
@@ -104,7 +105,7 @@ export async function renderVideo(job: RenderJob): Promise<RenderResult> {
     log(job.quiet, `audio: ${cues.length} cues`)
   }
 
-  const frameCount = Math.ceil(timeline.tEnd * job.fps)
+  const frameCount = Math.round(timeline.tEnd * job.fps)
   let lastPct = -1
   try {
     await encodeVideo(i => renderer.render(i / job.fps).data(), {
@@ -133,7 +134,7 @@ export async function renderVideo(job: RenderJob): Promise<RenderResult> {
     puzzleNumber: job.puzzleNumber,
     key,
     fps: job.fps,
-    searchBudget: job.searchBudget,
+    duration: job.duration,
     durationSec: +timeline.tEnd.toFixed(3),
     solveAtSec: +timeline.tSolve.toFixed(3),
     stats: trace.stats,
@@ -182,7 +183,7 @@ async function main() {
     options: {
       size: { type: 'string' }, seed: { type: 'string' }, puzzle: { type: 'string' },
       out: { type: 'string' }, 'out-dir': { type: 'string' }, fps: { type: 'string' },
-      budget: { type: 'string' }, number: { type: 'string' }, still: { type: 'string' },
+      duration: { type: 'string' }, number: { type: 'string' }, still: { type: 'string' },
       'no-audio': { type: 'boolean' }, 'keep-days': { type: 'string' }, quiet: { type: 'boolean' },
       preview: { type: 'boolean' },
     },
@@ -190,8 +191,8 @@ async function main() {
   const mode = positionals[0] ?? 'render'
   const seed = values.seed !== undefined ? Number(values.seed) >>> 0 : randomInt(2 ** 32 - 1)
   const fps = Number(values.fps ?? 60)
-  const searchBudget = Number(values.budget ?? 30)
-  const common = { seed, fps, searchBudget, audio: !values['no-audio'], quiet: values.quiet, preview: values.preview }
+  const duration = Number(values.duration ?? 60)
+  const common = { seed, fps, duration, audio: !values['no-audio'], quiet: values.quiet, preview: values.preview }
 
   if (mode === 'daily') {
     const dir = resolve(values['out-dir'] ?? 'output/daily')

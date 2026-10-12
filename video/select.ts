@@ -8,9 +8,10 @@ import type { Puzzle } from '../src/types/puzzle'
 import { traceDfs, type Trace } from './trace'
 import { hashSeed, mulberry32 } from './rng'
 
-/** Acceptable placement counts per board size (row-order DFS with forward checking). */
+/** Acceptable placement counts per board size (row-order DFS with forward checking), tuned for
+ *  a 60 s video: enough steps that the ~50 s search cruises at ≥ ~6 steps/s, not so many it blurs. */
 export const DRAMA: Record<number, [number, number]> = {
-  6: [25, 200], 7: [35, 300], 8: [60, 450], 9: [90, 700], 10: [140, 1100],
+  6: [60, 400], 7: [100, 600], 8: [200, 900], 9: [280, 1600], 10: [350, 2500],
 }
 
 export interface Selected { puzzle: Puzzle; trace: Trace; attempts: number; puzzleSeed: number }

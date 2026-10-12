@@ -22,7 +22,7 @@ describe('stepsFromTrace', () => {
 })
 
 describe('buildTimeline', () => {
-  const tl = buildTimeline(trace, { searchBudget: 20 })
+  const tl = buildTimeline(trace, { duration: 40 })
 
   it('schedules steps in order, on the beat grid, within budget', () => {
     const slot = tl.beat / 8
@@ -32,11 +32,10 @@ describe('buildTimeline', () => {
       prev = s.t
       // Ramp rungs up to 16 steps/s are one step per 1/32 or slower → exactly on the grid;
       // the final run is re-snapped to the grid after faster (k-per-slot) cruising.
-      if (s.speed <= 8 || s.isFinalRun) expect(Math.abs(s.t / slot - Math.round(s.t / slot))).toBeLessThan(1e-6)
+      if (s.isFinalRun || (s.speed <= 8 && s.t < tl.steps[0].t + 4)) expect(Math.abs(s.t / slot - Math.round(s.t / slot))).toBeLessThan(1e-6)
     }
     expect(tl.steps[0].t).toBe(tl.opts.intro)
-    // Budget, plus at most an 8th note of pause to put the final run on the grid.
-    expect(tl.tFinalRun - tl.opts.intro).toBeLessThanOrEqual(20 + tl.beat / 2 + 1e-6)
+    expect(tl.tEnd).toBe(40)
   })
 
   it('ends the search on the winning star, then celebrates', () => {
@@ -50,19 +49,19 @@ describe('buildTimeline', () => {
     expect(tl.steps.filter(s => s.isFinalRun).every(s => s.t >= tl.tFinalRun)).toBe(true)
   })
 
-  it('starts the final run on an 8th note and lands the solve on a beat, for every cruise speed', () => {
-    // Tight budgets force the fast k-per-1/32 rungs (24×, 48×, …) that end between grid lines.
+  it('hits the exact duration, starts the final run on an 8th and lands the solve on a beat', () => {
     const speeds = new Set<number>()
-    for (const [p, budget] of [[PUZZLE_8, 30], [PUZZLE_8, 3], [PUZZLE_9, 30], [PUZZLE_9, 12], [PUZZLE_9, 6], [PUZZLE_9, 3], [PUZZLE_9, 1.5]] as const) {
-      const t2 = buildTimeline(traceDfs(p, 'row'), { searchBudget: budget })
+    for (const [p, budget] of [[PUZZLE_8, 60], [PUZZLE_8, 30], [PUZZLE_9, 60], [PUZZLE_9, 45], [PUZZLE_9, 30], [PUZZLE_9, 20]] as const) {
+      const t2 = buildTimeline(traceDfs(p, 'row'), { duration: budget })
       t2.steps.forEach(s => speeds.add(s.speed))
       const eighth = t2.beat / 2
       expect(Math.abs(t2.tFinalRun / eighth - Math.round(t2.tFinalRun / eighth))).toBeLessThan(1e-6)
       expect(Math.abs(t2.tSolve / t2.beat - Math.round(t2.tSolve / t2.beat))).toBeLessThan(1e-6)
       for (let i = 1; i < t2.steps.length; i++)
         expect(t2.steps[i].t).toBeCloseTo(t2.steps[i - 1].t + t2.steps[i - 1].dur, 9)
+      expect(t2.tEnd).toBe(budget) // exact length, whatever the puzzle
     }
-    expect([...speeds].some(v => v > 8 && (v & (v - 1)) !== 0)).toBe(true) // e.g. 24×: 3 steps per 1/32
+    expect(speeds.size).toBeGreaterThan(3)
   })
 
   it('opens slowly and speeds up', () => {
