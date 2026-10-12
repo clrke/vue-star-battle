@@ -66,7 +66,7 @@ Given an *N×N* grid divided into *N* irregular colored regions:
 
 ## Solver videos (YouTube Shorts)
 
-`npm run video` renders a vertical **1080×1920 · 60 fps** MP4 of a depth-first search solving a freshly generated puzzle, with a fully procedural soundtrack — no browser, no screen recording, one command.
+`npm run video` renders an exactly **60-second**, vertical **1080×1920 · 60 fps** MP4 of a depth-first search solving a freshly generated puzzle, with a fully procedural soundtrack — no browser, no screen recording, one command.
 
 ```bash
 npm run video -- --size 9 --seed 42 --out output/demo.mp4           # render a video (+ output/demo.json sidecar)
@@ -75,7 +75,7 @@ npm run video -- --seed 42 --still 0,5,20 --out output/stills        # PNG frame
 npm run video:daily                                                 # dated render for the upload cron
 ```
 
-Options: `--size 6..10` (default: 8/9/10 at 30/45/25 %), `--seed`, `--number N` (puzzle # in the header), `--budget S` (seconds for the search before the final run, default 30), `--fps`, `--no-audio`, `--preview` (also write a 720p `-preview.mp4` small enough for chat). Requires Node ≥ 20 and `ffmpeg` (libx264) on `PATH`.
+Options: `--size 6..10` (default: 9/10 at 50/50 %), `--seed`, `--number N` (puzzle # in the header), `--duration S` (exact video length, default 60 — the search speeds up or slows down to fill it), `--fps`, `--no-audio`, `--preview` (also write a 720p `-preview.mp4` small enough for chat). Requires Node ≥ 20 and `ffmpeg` (libx264) on `PATH`.
 
 How a video is made (`video/`):
 
@@ -83,7 +83,7 @@ How a video is made (`video/`):
 |---|---|---|
 | Puzzle | `select.ts` | Seeded generator + "drama" filter — enough dead ends to be interesting, not so many it blurs |
 | Solver | `trace.ts` | Row-order DFS with forward checking, recorded as place / dead-end / backtrack events |
-| Pacing | `timeline.ts` | Steps on a 120 BPM 1/32-note grid: slow start, accelerating ramp, slowed final run, solve |
+| Pacing | `timeline.ts` | 120 BPM grid: slow start, accelerating ramp, cruise at exactly the speed that fills the duration, slowed final run, solve on the beat |
 | Picture | `render/` | Skia canvas frames as a pure function of time (any frame renders alone) |
 | Sound | `score.ts`, `audio/` | Cue list → procedural synth: mallet note per star (pitch = depth), sparkle on new depth records, soft bonk on dead ends, lo-fi beat + I–V–vi–IV pad, riser → impact on the solve, chime per verified row, confetti pops |
 | Encode | `encode.ts` | Raw RGBA frames piped into ffmpeg (H.264, BT.709) + AAC soundtrack |
