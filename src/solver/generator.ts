@@ -1,10 +1,19 @@
 import type { Puzzle } from '../types/puzzle'
 import { solve } from './solver'
 
+/** Source of uniform randoms in [0, 1). Pass a seeded PRNG for reproducible puzzles. */
+export type Rng = () => number
+
+/** 0 … n-1 in random order. Kept as the original sort-based shuffle so the random stream
+ *  is consumed exactly as before — the app's seeded daily puzzle must not change. */
+function shuffledRange(n: number, rng: Rng): number[] {
+  return Array.from({ length: n }, (_, i) => i).sort(() => rng() - 0.5)
+}
+
 // ── Random valid solution ──────────────────────────────────────────────────
 
 /** Find a random column-permutation solution (ignoring regions). */
-export function findRandomSolution(n: number): number[] | null {
+export function findRandomSolution(n: number, rng: Rng = Math.random): number[] | null {
   const colUsed = new Uint8Array(n)
   const stars   = new Int8Array(n).fill(-1)
   const found: number[][] = []
@@ -12,7 +21,7 @@ export function findRandomSolution(n: number): number[] | null {
   function search(row: number) {
     if (found.length) return
     if (row === n) { found.push(Array.from(stars)); return }
-    const order = Array.from({ length: n }, (_, i) => i).sort(() => Math.random() - 0.5)
+    const order = shuffledRange(n, rng)
     for (const col of order) {
       if (colUsed[col]) continue
       let adj = false
@@ -38,7 +47,7 @@ export function findRandomSolution(n: number): number[] | null {
 const DIRS: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1]]
 
 /** Balanced round-robin BFS region growth seeded at solution cells. */
-function growRegions(n: number, solution: number[]): number[][] | null {
+function growRegions(n: number, solution: number[], rng: Rng): number[][] | null {
   const grid = Array.from({ length: n }, () => new Array<number>(n).fill(-1))
   for (let r = 0; r < n; r++) grid[r][solution[r]] = r
 
@@ -54,11 +63,11 @@ function growRegions(n: number, solution: number[]): number[][] | null {
   let unassigned = n * n - n
   while (unassigned > 0) {
     let progress = false
-    const order = Array.from({ length: n }, (_, i) => i).sort(() => Math.random() - 0.5)
+    const order = shuffledRange(n, rng)
     for (const rid of order) {
       frontiers[rid] = frontiers[rid].filter(([r, c]) => grid[r][c] === -1)
       if (!frontiers[rid].length) continue
-      const idx = Math.floor(Math.random() * frontiers[rid].length)
+      const idx = Math.floor(rng() * frontiers[rid].length)
       const [r, c] = frontiers[rid][idx]
       grid[r][c] = rid
       frontiers[rid].splice(idx, 1)
@@ -147,16 +156,20 @@ function stub(n: number, grid: number[][]): Puzzle {
  * Phase 2: simulated-annealing boundary repair until `deadline`.
  *
  * Returns null if no unique puzzle was found before the deadline.
+ *
+ * `rng` defaults to Math.random; pass a seeded PRNG for reproducible output
+ * (fully reproducible whenever Phase 1 succeeds — Phase 2 is time-budgeted,
+ * so how far it gets depends on machine speed).
  */
-export function generatePuzzle(n: number, deadline: number): Puzzle | null {
+export function generatePuzzle(n: number, deadline: number, rng: Rng = Math.random): Puzzle | null {
   const minSize = Math.max(2, Math.floor(n * 0.45))
   const maxSize = Math.ceil(n * 2.2)
 
   // ── Phase 1: random growth ──
   for (let attempt = 0; attempt < 2000 && Date.now() < deadline - 300; attempt++) {
-    const solution = findRandomSolution(n)
+    const solution = findRandomSolution(n, rng)
     if (!solution) continue
-    const grid = growRegions(n, solution)
+    const grid = growRegions(n, solution, rng)
     if (!grid) continue
     const sizes = regionSizes(n, grid)
     if (Math.max(...sizes) > maxSize || Math.min(...sizes) < minSize) continue
@@ -185,9 +198,9 @@ export function generatePuzzle(n: number, deadline: number): Puzzle | null {
   const T_INIT     = 30
   const T_FINAL    = 0.05        // cold enough to be nearly greedy at deadline
 
-  const solution = findRandomSolution(n)
+  const solution = findRandomSolution(n, rng)
   if (!solution) return null
-  const gridBase = growRegions(n, solution)
+  const gridBase = growRegions(n, solution, rng)
   if (!gridBase) return null
 
   const grid      = gridBase.map(r => [...r])
@@ -212,8 +225,8 @@ export function generatePuzzle(n: number, deadline: number): Puzzle | null {
     const moves = boundaryMoves(n, grid, solution, counts, minSize, maxSize)
     if (!moves.length) break
 
-    const [r, c, oldRid, nbrs] = moves[Math.floor(Math.random() * moves.length)]
-    const newRid = nbrs[Math.floor(Math.random() * nbrs.length)]
+    const [r, c, oldRid, nbrs] = moves[Math.floor(rng() * moves.length)]
+    const newRid = nbrs[Math.floor(rng() * nbrs.length)]
 
     if (!connectedWithout(n, grid, r, c)) continue
 
@@ -227,7 +240,7 @@ export function generatePuzzle(n: number, deadline: number): Puzzle | null {
     const frac = (Date.now() - phaseStart) / phaseBudget
     const T    = T_INIT * Math.pow(T_FINAL / T_INIT, frac)
 
-    if (delta <= 0 || Math.random() < Math.exp(-delta / T)) {
+    if (delta <= 0 || rng() < Math.exp(-delta / T)) {
       e = newE
       if (e === 0)
         return { id: `gen-${n}-${Date.now()}`, title: `${n}×${n}`, n, grid: grid.map(r => [...r]) }

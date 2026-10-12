@@ -64,6 +64,34 @@ Given an *N×N* grid divided into *N* irregular colored regions:
 
 ---
 
+## Solver videos (YouTube Shorts)
+
+`npm run video` renders a vertical **1080×1920 · 60 fps** MP4 of a depth-first search solving a freshly generated puzzle, with a fully procedural soundtrack — no browser, no screen recording, one command.
+
+```bash
+npm run video -- --size 9 --seed 42 --out output/demo.mp4           # render a video (+ output/demo.json sidecar)
+npm run video -- --puzzle output/demo.json --out output/again.mp4   # re-render a saved puzzle exactly
+npm run video -- --seed 42 --still 0,5,20 --out output/stills        # PNG frames only (fast preview)
+npm run video:daily                                                 # dated render for the upload cron
+```
+
+Options: `--size 6..10` (default: 8/9/10 at 30/45/25 %), `--seed`, `--number N` (puzzle # in the header), `--budget S` (seconds for the search before the final run, default 30), `--fps`, `--no-audio`, `--preview` (also write a 720p `-preview.mp4` small enough for chat). Requires Node ≥ 20 and `ffmpeg` (libx264) on `PATH`.
+
+How a video is made (`video/`):
+
+| Stage | File | What it does |
+|---|---|---|
+| Puzzle | `select.ts` | Seeded generator + "drama" filter — enough dead ends to be interesting, not so many it blurs |
+| Solver | `trace.ts` | Row-order DFS with forward checking, recorded as place / dead-end / backtrack events |
+| Pacing | `timeline.ts` | Steps on a 120 BPM 1/32-note grid: slow start, accelerating ramp, slowed final run, solve |
+| Picture | `render/` | Skia canvas frames as a pure function of time (any frame renders alone) |
+| Sound | `score.ts`, `audio/` | Cue list → procedural synth: mallet note per star (pitch = depth), sparkle on new depth records, soft bonk on dead ends, lo-fi beat + I–V–vi–IV pad, riser → impact on the solve, chime per verified row, confetti pops |
+| Encode | `encode.ts` | Raw RGBA frames piped into ffmpeg (H.264, BT.709) + AAC soundtrack |
+
+Every render writes a JSON sidecar (grid, seeds, stats) next to the MP4. `--puzzle <sidecar>` reproduces a video exactly; `--seed` alone usually does too, but the generator's fallback phase is time-budgeted, so a seed can yield a different puzzle on a slower or faster machine.
+
+---
+
 ## Tech stack
 
 | | |
@@ -86,6 +114,7 @@ npm run test       # run tests once
 npm run test:watch # watch mode
 npm run build      # production build
 npm run simulate   # run the puzzle generator simulation script
+npm run video      # render a solver video (see "Solver videos" above)
 ```
 
 ---
