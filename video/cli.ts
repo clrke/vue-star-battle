@@ -1,7 +1,7 @@
 /**
  * Star Battle solver videos — one command from nothing to a finished MP4.
  *
- *   npm run video -- [--size 9] [--seed 123] [--out output/video.mp4]
+ *   npm run video -- [--size 8] [--seed 123] [--out output/video.mp4]
  *   npm run video -- --puzzle output/daily/<file>.json      re-render a saved puzzle
  *   npm run video -- --still 0,5,30 --out /tmp/frames        PNG stills, no encode
  *   npm run video:daily                                      dated render for the upload cron
@@ -27,7 +27,8 @@ import { encodeVideo, encodePreview } from './encode'
 import { hashSeed, mulberry32, pick } from './rng'
 
 const KEYS = [-3, -2, 0, 2, 3] // A, B♭, C, D, E♭
-const SIZE_WEIGHTS: [number, number][] = [[9, 0.5], [10, 0.5]] // 8×8 rarely has enough steps for 60 s
+// 9×9+ confused viewers (Clarke 2026-10-14): 5×5 – 8×8 only, equal odds.
+const SIZE_WEIGHTS: [number, number][] = [[5, 0.25], [6, 0.25], [7, 0.25], [8, 0.25]]
 
 export interface RenderJob {
   seed: number
@@ -53,7 +54,7 @@ function pickSize(seed: number): number {
   const r = mulberry32(hashSeed(seed, 'size'))()
   let acc = 0
   for (const [n, w] of SIZE_WEIGHTS) { acc += w; if (r < acc) return n }
-  return 9
+  return 8
 }
 
 export async function renderVideo(job: RenderJob): Promise<RenderResult> {

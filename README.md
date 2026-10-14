@@ -69,7 +69,7 @@ Given an *N×N* grid divided into *N* irregular colored regions:
 `npm run video` renders an exactly **60-second**, vertical **1080×1920 · 60 fps** MP4 of a depth-first search solving a freshly generated puzzle, with a fully procedural soundtrack — no browser, no screen recording, one command.
 
 ```bash
-npm run video -- --size 9 --seed 42 --out output/demo.mp4           # render a video (+ output/demo.json sidecar)
+npm run video -- --size 8 --seed 42 --out output/demo.mp4           # render a video (+ output/demo.json sidecar)
 npm run video -- --puzzle output/demo.json --out output/again.mp4   # re-render a saved puzzle exactly
 npm run video -- --seed 42 --still 0,5,20 --out output/stills        # PNG frames only (fast preview)
 npm run video:daily                                                 # dated render for the upload cron

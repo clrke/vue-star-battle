@@ -131,7 +131,7 @@ export function buildTimeline(trace: Trace, partial: Partial<TimelineOptions> = 
     const left = searchCount - done
     const remaining = budget - time
     if (left / v <= remaining || rung === RUNGS.length - 1) {
-      const vc = Math.max(left / Math.max(remaining, 1e-3), 0.5)
+      const vc = Math.max(left / Math.max(remaining, 1e-3), 0.25) // small boards cruise slowly to fill 60 s
       for (let k = 0; k < left; k++) { durs.push(1 / vc); speeds.push(Math.max(1, Math.round(vc / RUNGS[0]))) }
       done = searchCount
       break

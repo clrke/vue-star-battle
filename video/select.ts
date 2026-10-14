@@ -9,16 +9,17 @@ import { traceDfs, type Trace } from './trace'
 import { hashSeed, mulberry32 } from './rng'
 
 /** Acceptable placement counts per board size (row-order DFS with forward checking), tuned for
- *  a 60 s video: enough steps that the ~50 s search cruises at ≥ ~6 steps/s, not so many it blurs. */
+ *  a 60 s video. Floors sit near each size's ~90th percentile so small boards still backtrack a
+ *  lot and the ~50 s search doesn't crawl (5×5 ≈ 0.5 steps/s … 8×8 ≈ 4 steps/s). */
 export const DRAMA: Record<number, [number, number]> = {
-  6: [60, 400], 7: [100, 600], 8: [200, 900], 9: [280, 1600], 10: [350, 2500],
+  5: [22, 60], 6: [40, 150], 7: [100, 600], 8: [200, 900], 9: [280, 1600], 10: [350, 2500],
 }
 
 export interface Selected { puzzle: Puzzle; trace: Trace; attempts: number; puzzleSeed: number }
 
 export function selectPuzzle(seed: number, n: number, opts: { maxAttempts?: number; genMs?: number; log?: (s: string) => void } = {}): Selected {
   const [lo, hi] = DRAMA[n] ?? [n * 10, n * 120]
-  const maxAttempts = opts.maxAttempts ?? 40
+  const maxAttempts = opts.maxAttempts ?? (n <= 6 ? 150 : 60)
   let best: Selected | null = null
   let bestMiss = Infinity
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
