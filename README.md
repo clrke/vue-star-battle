@@ -4,7 +4,7 @@ A polished Vue 3 implementation of **Star Battle**, the logic puzzle invented by
 
 **[▶ Play it live →](https://clrke.github.io/vue-star-battle/)**
 
-You may know it as **Queens** (LinkedIn), **Kings** (The Almanac iOS), or **Two Not Touch** (The New York Times). All are rebrands of the same 1★ Star Battle variant.
+You may know it as **Queens** (LinkedIn): the same 1★ Star Battle rules. (The New York Times' *Two Not Touch* is the harder 2★ variant.)
 
 ---
 
