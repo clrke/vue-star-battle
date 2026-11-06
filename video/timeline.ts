@@ -45,6 +45,9 @@ export interface TimelineOptions {
   duration: number
   /** Celebration + outro length after the solve, seconds. */
   outro: number
+  /** Fixed search pace in steps/s (melody videos: one note per 8th at 4/s). Overrides the
+   *  ramp + cruise; the video is then as long as the search needs (pass duration 0). */
+  rate?: number
 }
 
 export const DEFAULT_TIMELINE: TimelineOptions = { bpm: 120, intro: 1.0, duration: 60, outro: 6.5 }
@@ -126,6 +129,14 @@ export function buildTimeline(trace: Trace, partial: Partial<TimelineOptions> = 
   const durs: number[] = []
   const speeds: number[] = []
   let rung = 0, done = 0, time = 0
+  if (opts.rate) {
+    // Placements on every 8th (one melody note each); take-backs are a quick 1/32 so the tune barely stutters.
+    for (let k = 0; k < searchCount; k++) {
+      durs.push(raw[k].kind === 'backtrack' ? 1 / (opts.rate * 4) : 1 / opts.rate)
+      speeds.push(Math.max(1, opts.rate / RUNGS[0]))
+    }
+    done = searchCount
+  }
   while (done < searchCount) {
     const v = RUNGS[rung] * (opts.bpm / 120)
     const left = searchCount - done

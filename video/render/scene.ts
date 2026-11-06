@@ -22,6 +22,14 @@ export interface SceneMeta {
   cta: string
   ctaSub: string
   fps: number
+  /** Two header lines before the solve (default "CAN YOU BEAT" / "THE COMPUTER?"). */
+  hook?: [string, string]
+  /** Challenge: seconds of countdown — the big number replaces the second hook line. */
+  countdown?: number
+  /** Challenge: name the asked row's cells (A1, B1, …) during the countdown. */
+  labels?: boolean
+  /** Challenge: row outlined in gold during the countdown (0-based). */
+  highlightRow?: number
 }
 
 const CONFETTI_COLORS = [...REGION_COLORS.slice(0, 10), '#f7c948', '#ffffff', '#ff6b81', '#4aa3df']
@@ -174,6 +182,7 @@ export class SceneRenderer {
     ctx.translate(W / 2 + dx, H / 2 + dy); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H / 2)
     this.drawHeader(t)
     this.drawBoard(t)
+    if (this.meta.labels) this.drawLabels(t)
     this.drawHud(t)
     ctx.restore()
     this.drawConfetti(t)
@@ -264,6 +273,28 @@ export class SceneRenderer {
     ctx.restore()
   }
 
+  // ── Challenge labels ─────────────────────────────────────────────────────
+
+  private drawLabels(t: number) {
+    const ctx = this.ctx
+    const n = this.model.n
+    const c = this.cell
+    const row = this.meta.highlightRow ?? 0
+    const until = (this.meta.countdown ?? this.model.timeline.opts.intro) + 0.4
+    if (t >= until) return
+    const fade = clamp01((until - t) / 0.4)
+    // Name the cells of the asked row (A1, B1, …) so viewers can comment an answer.
+    for (let i = 0; i < n; i++)
+      this.text(`${String.fromCharCode(65 + i)}${row + 1}`, BOARD.x + (i + 0.5) * c, BOARD.y + (row + 0.5) * c, font(800, Math.round(c * 0.26)), 'rgba(60, 40, 10, 0.75)', { alpha: fade })
+    ctx.save()
+    ctx.globalAlpha = fade * (0.75 + 0.25 * Math.sin(t * 2 * Math.PI))
+    ctx.strokeStyle = COLORS.gold
+    ctx.lineWidth = 8
+    ctx.shadowColor = 'rgba(247, 201, 72, 0.8)'; ctx.shadowBlur = 24
+    ctx.beginPath(); ctx.roundRect(BOARD.x + 4, BOARD.y + row * c + 4, BOARD.size - 8, c - 8, 12); ctx.stroke()
+    ctx.restore()
+  }
+
   // ── Header ───────────────────────────────────────────────────────────────
 
   private drawHeader(t: number) {
@@ -275,11 +306,20 @@ export class SceneRenderer {
     if (preBanner) {
       const fadeOut = clamp01((tl.tBanner - t) / 0.15)
       const intro = easeOutBack(clamp01(t / 0.35), 1.4)
-      this.text('CAN YOU BEAT', W / 2, LAYOUT.hook1Y, font(800, 76), COLORS.text,
+      const [hookA, hookB] = this.meta.hook ?? ['CAN YOU BEAT', 'THE COMPUTER?']
+      this.text(hookA, W / 2, LAYOUT.hook1Y, font(800, 76), COLORS.text,
         { alpha: fadeOut, scale: lerp(0.92, 1, intro), stroke: 'rgba(0,0,0,0.35)', strokeW: 10, spacing: 2 })
       const s2 = lerp(0.85, 1, intro) * (1 + 0.025 * beatPulse * (t > tl.opts.intro ? 1 : 0))
-      this.text('THE COMPUTER?', W / 2, LAYOUT.hook2Y, font(900, 104), COLORS.gold,
-        { alpha: fadeOut, scale: s2, stroke: '#5a3300', strokeW: 12, glow: 'rgba(247, 201, 72, 0.55)' })
+      const cd = this.meta.countdown ?? 0
+      if (t < cd) {
+        // Countdown digit: pops in at the start of each second and shrinks away.
+        const k = t - Math.floor(t)
+        this.text(String(Math.ceil(cd - t)), W / 2, LAYOUT.hook2Y, font(900, 110), COLORS.gold,
+          { scale: lerp(1.05, 0.85, easeOutCubic(k)), alpha: 1 - 0.6 * k, stroke: '#5a3300', strokeW: 14, glow: 'rgba(247, 201, 72, 0.7)' })
+      } else {
+        this.text(hookB, W / 2, LAYOUT.hook2Y, font(900, 104), COLORS.gold,
+          { alpha: fadeOut, scale: s2, stroke: '#5a3300', strokeW: 12, glow: 'rgba(247, 201, 72, 0.55)' })
+      }
       const num = this.meta.puzzleNumber ? `  ·  PUZZLE #${this.meta.puzzleNumber}` : ''
       this.text(`${n}×${n} STAR BATTLE${num}`, W / 2, LAYOUT.subY, font(700, 36), COLORS.muted, { alpha: fadeOut, spacing: 3 })
       this.richText('One ★ per row, column & region · stars never touch', W / 2, LAYOUT.rulesY, font(600, 31), 'rgba(220, 222, 255, 0.8)', { alpha: fadeOut })

@@ -75,7 +75,7 @@ npm run video -- --seed 42 --still 0,5,20 --out output/stills        # PNG frame
 npm run video:daily                                                 # dated render for the upload cron
 ```
 
-Options: `--size 6..10` (default: 9/10 at 50/50 %), `--seed`, `--number N` (puzzle # in the header), `--duration S` (exact video length, default 60 — the search speeds up or slows down to fill it), `--fps`, `--no-audio`, `--preview` (also write a 720p `-preview.mp4` small enough for chat). Requires Node ≥ 20 and `ffmpeg` (libx264) on `PATH`.
+Options: `--format classic|melody|challenge` (daily mode rotates all three across the ET slots), `--size 5..10` (default: 5–8 at 25 % each; melody uses 7×7, challenge 5×5/6×6), `--seed`, `--number N` (puzzle # in the header), `--duration S` (exact video length, default 60 — the search speeds up or slows down to fill it), `--fps`, `--no-audio`, `--preview` (also write a 720p `-preview.mp4` small enough for chat). Requires Node ≥ 20 and `ffmpeg` (libx264) on `PATH`.
 
 How a video is made (`video/`):
 

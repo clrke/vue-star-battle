@@ -27,6 +27,11 @@ export interface ScoreOptions {
   n: number
   /** Column of the solution star in each row (for panning the verification chimes). */
   solutionCols: number[]
+  /** Melody mode: semitones above the tonic, one per placed star (looped). The tune replaces the
+   *  depth ladder and the chord bed, so it stays recognisable. */
+  melody?: number[]
+  /** Challenge mode: a tick per second for this many seconds of countdown before the search. */
+  countdown?: number
 }
 
 /** Chord tones from `lowest` upward, as MIDI notes. */
@@ -53,8 +58,8 @@ export function composeScore(tl: Timeline, o: ScoreOptions): AudioCue[] {
   const pitchFor = (depth: number, t: number) => ladder(chordAt(t), key, 60 + key, n + 2)[Math.max(0, depth - 1)]
   const pan = (col: number) => (n > 1 ? (col / (n - 1)) * 1.2 - 0.6 : 0)
 
-  // ── Harmony bed ──
-  for (let t = 0; t < tl.tFinalRun - 1e-6; t += bar) {
+  // ── Harmony bed (skipped under a melody: fixed chords would clash with the tune) ──
+  for (let t = 0; t < (o.melody ? 0 : tl.tFinalRun) - 1e-6; t += bar) {
     const ch = chordAt(t)
     const dur = Math.min(bar, tl.tFinalRun - t)
     cues.push({ t, kind: 'pad', notes: [...voicing(ch, key, 55 + key), 36 + key + ch.root + 12], dur: dur + 0.05, gain: 0.9 })
@@ -89,12 +94,17 @@ export function composeScore(tl: Timeline, o: ScoreOptions): AudioCue[] {
   // ── Intro: attention grab ──
   cues.push({ t: 0, kind: 'whoosh', dur: 0.5, gain: 0.7 })
   cues.push({ t: 0.08, kind: 'sparkle', notes: voicing(I, key, 72 + key), dur: 0.9, gain: 0.6 })
+  // Challenge countdown: a tick each second, higher on the last one, then a whoosh as the bot starts.
+  for (let k = 0; k < (o.countdown ?? 0); k++) cues.push({ t: k, kind: 'record', pitch: (k === o.countdown! - 1 ? 84 : 79) + key, gain: 0.6 })
+  if (o.countdown) cues.push({ t: o.countdown - 0.25, kind: 'whoosh', dur: 0.5, gain: 0.6 })
 
   // ── The search itself ──
   const slot = beat / 8 // 1/32 note
   // Cruise steps can fall between grid lines; their sounds snap to the nearest 1/32 (≤31 ms).
   const snap = (t: number) => Math.round(t / slot) * slot
   let lastNoteSlot = -1, lastBonk = -Infinity, lastBloop = -Infinity, lastRecord = -Infinity
+  let mi = 0 // melody position
+  const mel = o.melody?.length ? o.melody : undefined
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i]
     const isLast = i === steps.length - 1
@@ -108,9 +118,10 @@ export function composeScore(tl: Timeline, o: ScoreOptions): AudioCue[] {
         lastNoteSlot = sl
         const slowness = clamp01((s.dur - 0.03) / (0.25 - 0.03))
         const g = isLast ? 1.15 : s.isFinalRun ? 1.0 : 0.55 + 0.45 * slowness
-        cues.push({ t: snap(s.t), kind: 'place', pitch: pitchFor(s.depth, s.t), gain: g, pan: pan(s.col) })
+        const pitch = mel ? 72 + key + mel[mi++ % mel.length] : pitchFor(s.depth, s.t)
+        cues.push({ t: snap(s.t), kind: 'place', pitch, gain: mel ? Math.max(g, 0.85) : g, pan: pan(s.col) })
         // Record sparkles ring for seconds: space the early ones a beat apart, never drop the deep ones.
-        if (s.isRecord && s.depth >= 2 && (s.t - lastRecord >= beat || s.depth >= n - 2)) {
+        if (!mel && s.isRecord && s.depth >= 2 && (s.t - lastRecord >= beat || s.depth >= n - 2)) {
           lastRecord = s.t
           cues.push({ t: snap(s.t), kind: 'record', pitch: pitchFor(s.depth, s.t) + 12, gain: 0.55 + 0.25 * slowness, pan: pan(s.col) })
         }
@@ -127,7 +138,7 @@ export function composeScore(tl: Timeline, o: ScoreOptions): AudioCue[] {
       const slowEnough = s.dur >= 0.1
       if (slowEnough || s.t - lastBloop >= beat / 2) {
         lastBloop = s.t
-        cues.push({ t: snap(s.t), kind: 'remove', pitch: pitchFor(s.depth + 1, s.t), gain: slowEnough ? 0.9 : 0.4, pan: pan(s.col) })
+        cues.push({ t: snap(s.t), kind: 'remove', pitch: pitchFor(s.depth + 1, s.t), gain: (slowEnough ? 0.9 : 0.4) * (mel ? 0.35 : 1), pan: pan(s.col) })
       }
     }
   }

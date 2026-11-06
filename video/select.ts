@@ -17,8 +17,8 @@ export const DRAMA: Record<number, [number, number]> = {
 
 export interface Selected { puzzle: Puzzle; trace: Trace; attempts: number; puzzleSeed: number }
 
-export function selectPuzzle(seed: number, n: number, opts: { maxAttempts?: number; genMs?: number; log?: (s: string) => void } = {}): Selected {
-  const [lo, hi] = DRAMA[n] ?? [n * 10, n * 120]
+export function selectPuzzle(seed: number, n: number, opts: { maxAttempts?: number; genMs?: number; log?: (s: string) => void; drama?: [number, number] } = {}): Selected {
+  const [lo, hi] = opts.drama ?? DRAMA[n] ?? [n * 10, n * 120]
   const maxAttempts = opts.maxAttempts ?? (n <= 6 ? 150 : 60)
   let best: Selected | null = null
   let bestMiss = Infinity
