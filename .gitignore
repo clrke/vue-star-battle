@@ -26,4 +26,8 @@ dist-ssr
 *.sw?
 
 # Claude Code
-.saint-expeditus/
+# Agent/bot state stays local; the run script, daily uploader, and upload config are versioned (mirrors sfm-illusion-gen).
+.saint-expeditus/*
+!.saint-expeditus/daily-run.sh
+!.saint-expeditus/upload-daily.ts
+!.saint-expeditus/youtube-upload.json

@@ -72,7 +72,14 @@ export interface RenderJob {
 
 export interface RenderResult { out: string; sidecar: string; puzzle: Puzzle; trace: Trace; timeline: Timeline; seconds: number }
 
-const log = (quiet: boolean | undefined, s: string) => { if (!quiet) console.error(s) }
+const stamp = (): string => {
+  const d = new Date()
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+/** Progress lines go to stderr (stdout stays a clean machine channel) with a local timestamp so launchd.err.log runs stay attributable. */
+export const log = (quiet: boolean | undefined, s: string): void => { if (!quiet) console.error(`[${stamp()}] ${s}`) }
 
 function sizeFor(format: Format, seed: number): number {
   if (format === 'melody') return 7

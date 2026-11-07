@@ -1,0 +1,17 @@
+{
+  "titleTemplate": "Can You Beat the Computer? {Name} ⭐ #shorts",
+  "description": "Can you solve this Star Battle puzzle before the computer does? 🧠⭐\n\nRules: place exactly one star in every row, every column and every colored region — and no two stars may touch, not even diagonally. (Same puzzle as LinkedIn Queens.)\n\nThe computer solves it with a depth-first search: it places stars row by row, and whenever a row, column or region runs out of room it backtracks and tries the next option.\n\nThree new puzzles every day — follow so you never miss one!\n\nPlay it yourself: https://clrke.github.io/vue-star-battle/\n\n#shorts #starbattle #queens #puzzle #logicpuzzle #algorithm #satisfying",
+  "privacy": "unlisted",
+  "variants": [
+    {
+      "prefix": "melody-",
+      "titleTemplate": "Can You Name This Song? 🎵 The Computer Plays It While Solving {Name} #shorts",
+      "description": "Every star the computer places plays the next note of a famous tune. Can you name the song? Comment below! 🎵\n\nIt's solving a Star Battle puzzle with a depth-first search: wrong turns get a thud and it backtracks.\n\nRules: place exactly one star in every row, every column and every colored region — and no two stars may touch, not even diagonally. (Same puzzle as LinkedIn Queens.)\n\nPlay it yourself: https://clrke.github.io/vue-star-battle/\n\n#shorts #guessthesong #starbattle #queens #puzzle #satisfying"
+    },
+    {
+      "prefix": "challenge-",
+      "titleTemplate": "Where's Row 1's Star? Comment Before the Computer Solves It! ⭐ {Name} #shorts",
+      "description": "Pause and solve: which cell in row 1 holds the star? Comment your answer (e.g. C1), then watch the computer solve it. 🧠⭐\n\nRules: place exactly one star in every row, every column and every colored region — and no two stars may touch, not even diagonally. (Same puzzle as LinkedIn Queens.)\n\nPlay it yourself: https://clrke.github.io/vue-star-battle/\n\n#shorts #starbattle #queens #puzzle #brainteaser #logicpuzzle"
+    }
+  ]
+}
