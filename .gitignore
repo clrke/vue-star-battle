@@ -31,3 +31,5 @@ dist-ssr
 !.saint-expeditus/daily-run.sh
 !.saint-expeditus/upload-daily.ts
 !.saint-expeditus/youtube-upload.json
+# Bridge working state (decision scratchpad) stays local, like .saint-expeditus/ state.
+.muse-bridge/
