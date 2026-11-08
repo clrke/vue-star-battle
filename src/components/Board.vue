@@ -372,7 +372,7 @@ function onToggleMark(r: number, c: number) {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(95vw, 90vh, 560px);
+  width: min(95vw, 90dvh, 560px);
 }
 
 .progress-track {
@@ -430,8 +430,8 @@ function onToggleMark(r: number, c: number) {
 /* Board */
 .board {
   display: grid;
-  width: min(95vw, 75vh, 560px);
-  height: min(95vw, 75vh, 560px);
+  width: min(95vw, 75dvh, 560px);
+  height: min(95vw, 75dvh, 560px);
   border: 3px solid var(--border-strong);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
   border-radius: 4px;
@@ -439,6 +439,12 @@ function onToggleMark(r: number, c: number) {
   transition: box-shadow 0.4s ease;
   /* Block pinch zoom on the board itself */
   touch-action: manipulation;
+}
+
+/* Short/landscape screens: cap the board against compacted chrome instead of blind 75%.
+   Matches no desktop/portrait viewport, so their rendering is unchanged. */
+@media (max-height: 520px) {
+  .board { width: min(95vw, calc(100dvh - 230px), 560px); height: min(95vw, calc(100dvh - 230px), 560px); }
 }
 
 .board--solved {

@@ -23,7 +23,7 @@ Given an *N×N* grid divided into *N* irregular colored regions:
 
 **Core gameplay**
 - Boards from 4×4 up to 10×10, unlocked progressively as you level up
-- Left-click / single tap = place/remove a star; right-click / double tap = dot marker
+- Left-click / double tap = place/remove a star; right-click / single tap = dot marker
 - Auto-marks: cells eliminated by an existing star dim automatically
 - Violation highlights: conflicting stars flash red
 - Undo / Redo (Ctrl+Z / Ctrl+Shift+Z), Reset
@@ -70,7 +70,7 @@ Given an *N×N* grid divided into *N* irregular colored regions:
 
 ```bash
 npm run video -- --size 8 --seed 42 --out output/demo.mp4           # render a video (+ output/demo.json sidecar)
-npm run video -- --puzzle output/demo.json --out output/again.mp4   # re-render a saved puzzle exactly
+npm run video -- --puzzle output/demo.json --out output/again.mp4   # re-render a saved puzzle's grid (re-pass the original --seed/--format/--duration for a closer match)
 npm run video -- --seed 42 --still 0,5,20 --out output/stills        # PNG frames only (fast preview)
 npm run video:daily                                                 # dated render for the upload cron
 ```
@@ -88,7 +88,7 @@ How a video is made (`video/`):
 | Sound | `score.ts`, `audio/` | Cue list → procedural synth: mallet note per star (pitch = depth), sparkle on new depth records, soft bonk on dead ends, lo-fi beat + I–V–vi–IV pad, riser → impact on the solve, chime per verified row, confetti pops |
 | Encode | `encode.ts` | Raw RGBA frames piped into ffmpeg (H.264, BT.709) + AAC soundtrack |
 
-Every render writes a JSON sidecar (grid, seeds, stats) next to the MP4. `--puzzle <sidecar>` reproduces a video exactly; `--seed` alone usually does too, but the generator's fallback phase is time-budgeted, so a seed can yield a different puzzle on a slower or faster machine.
+Every render writes a JSON sidecar (grid, seeds, stats) next to the MP4. `--puzzle <sidecar>` re-renders the same puzzle grid and solve trace, but only the grid is restored — music key, melody, soundtrack noise, and confetti derive from `--seed` (random unless you re-pass the original), and format/duration/fps/puzzle number fall back to flags/defaults, so an exact video match needs the original flags too. `--seed` alone usually reproduces as well, but the generator's fallback phase is time-budgeted, so a seed can yield a different puzzle on a slower or faster machine.
 
 ---
 

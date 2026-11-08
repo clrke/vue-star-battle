@@ -243,6 +243,12 @@ onUnmounted(() => {
   .app-subtitle { font-size: 0.78rem; line-height: 1.35; }
 }
 
+/* Short/landscape screens: reclaim chrome so board + footer stay co-visible. */
+@media (max-height: 520px) {
+  .app { gap: 8px; padding: 8px 10px 12px; }
+  .app-subtitle { display: none; }
+}
+
 .app-header { text-align: center; }
 .app-title {
   font-size: clamp(1.5rem, 5vw, 2.2rem);

@@ -7,7 +7,7 @@
  *   npm run video:daily                                      dated render for the upload cron
  *
  * Every render writes a JSON sidecar (puzzle grid, seeds, stats) next to the MP4, so any
- * video can be reproduced exactly with --puzzle.
+ * puzzle grid can be re-rendered with --puzzle (exact video match needs the original flags too).
  */
 import { parseArgs } from 'node:util'
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, statSync, unlinkSync, appendFileSync } from 'node:fs'
@@ -29,7 +29,7 @@ import { MELODIES, type Melody } from './melodies'
 
 const KEYS = [-3, -2, 0, 2, 3] // A, B♭, C, D, E♭
 // 9×9+ confused viewers (Clarke 2026-10-14): 5×5 – 8×8 only, equal odds.
-const SIZE_WEIGHTS: [number, number][] = [[5, 0.25], [6, 0.25], [7, 0.25], [8, 0.25]]
+export const SIZE_WEIGHTS: [number, number][] = [[5, 0.25], [6, 0.25], [7, 0.25], [8, 0.25]]
 
 /**
  * Video formats (pivot test, 2026-11-06):
@@ -81,13 +81,13 @@ const stamp = (): string => {
 /** Progress lines go to stderr (stdout stays a clean machine channel) with a local timestamp so launchd.err.log runs stay attributable. */
 export const log = (quiet: boolean | undefined, s: string): void => { if (!quiet) console.error(`[${stamp()}] ${s}`) }
 
-function sizeFor(format: Format, seed: number): number {
+export function sizeFor(format: Format, seed: number): number {
   if (format === 'melody') return 7
   if (format === 'challenge') return CHALLENGE_SIZES[Math.floor(mulberry32(hashSeed(seed, 'size'))() * CHALLENGE_SIZES.length)]
   return pickSize(seed)
 }
 
-function pickSize(seed: number): number {
+export function pickSize(seed: number): number {
   const r = mulberry32(hashSeed(seed, 'size'))()
   let acc = 0
   for (const [n, w] of SIZE_WEIGHTS) { acc += w; if (r < acc) return n }
@@ -211,8 +211,30 @@ function loadPuzzleFile(file: string): Puzzle {
   return { id: p.id ?? basename(file), title: `${p.grid.length}×${p.grid.length}`, n: p.grid.length, grid: p.grid }
 }
 
+/** Reject unknown --format values before any work (rendering is minutes-long). */
+export function assertValidFormat(format: string | undefined): void {
+  if (format && !(FORMATS as readonly string[]).includes(format)) throw new Error(`--format must be one of ${FORMATS.join(' | ')}`)
+}
+
+/** Next daily puzzle number: explicit --number wins, else non-blank log lines + 1 (missing log → 1). */
+export function nextDailyNumber(logContent: string | null, override?: number): number {
+  if (override !== undefined) return override
+  if (logContent === null) return 1
+  return logContent.split('\n').filter(Boolean).length + 1
+}
+
+// Non-classic files carry a "<format>-" prefix: youtube-upload.json's variants pick their title by it.
+export function dailyFilename(date: string, format: Format, size: number, number: number): string {
+  return `${date}-${format === 'classic' ? '' : `${format}-`}star-battle-${size}x${size}-puzzle-${number}.mp4`
+}
+
+/** One line of output/daily/log.jsonl. `file` is the basename — never a path. */
+export function dailyLogEntry(number: number, file: string, seed: number, n: number, format: Format, stats: Trace['stats'], at: string) {
+  return { number, file, seed, n, format, stats, at }
+}
+
 /** Delete dated renders older than `days` (only files named YYYY-MM-DD-*.mp4/json). */
-function prune(dir: string, days: number) {
+export function prune(dir: string, days: number) {
   if (days <= 0 || !existsSync(dir)) return
   const cutoff = Date.now() - days * 86_400_000
   for (const f of readdirSync(dir)) {
@@ -238,22 +260,20 @@ async function main() {
   const fps = Number(values.fps ?? 60)
   const duration = Number(values.duration ?? 60)
   const common = { seed, fps, duration, audio: !values['no-audio'], quiet: values.quiet, preview: values.preview }
-  if (values.format && !(FORMATS as readonly string[]).includes(values.format)) throw new Error(`--format must be one of ${FORMATS.join(' | ')}`)
+  assertValidFormat(values.format)
 
   if (mode === 'daily') {
     const dir = resolve(values['out-dir'] ?? 'output/daily')
     mkdirSync(dir, { recursive: true })
     prune(dir, Number(values['keep-days'] ?? 30))
     const logFile = join(dir, 'log.jsonl')
-    const number = values.number ? Number(values.number)
-      : (existsSync(logFile) ? readFileSync(logFile, 'utf8').split('\n').filter(Boolean).length : 0) + 1
+    const number = nextDailyNumber(existsSync(logFile) ? readFileSync(logFile, 'utf8') : null, values.number ? Number(values.number) : undefined)
     const format = (values.format as Format | undefined) ?? dailyFormat(new Date(), number)
     const size = values.size ? Number(values.size) : sizeFor(format, seed)
     const date = new Date().toLocaleDateString('en-CA') // local YYYY-MM-DD, like `date +%F`
-    // Non-classic files carry a "<format>-" prefix: youtube-upload.json's variants pick their title by it.
-    const out = join(dir, `${date}-${format === 'classic' ? '' : `${format}-`}star-battle-${size}x${size}-puzzle-${number}.mp4`)
+    const out = join(dir, dailyFilename(date, format, size, number))
     const res = await renderVideo({ ...common, size, out, puzzleNumber: number, format })
-    appendFileSync(logFile, JSON.stringify({ number, file: basename(out), seed, n: size, format, stats: res.trace.stats, at: new Date().toISOString() }) + '\n')
+    appendFileSync(logFile, JSON.stringify(dailyLogEntry(number, basename(out), seed, size, format, res.trace.stats, new Date().toISOString())) + '\n')
     log(values.quiet, `done in ${res.seconds.toFixed(1)} s`)
     console.log(res.out)
     return
